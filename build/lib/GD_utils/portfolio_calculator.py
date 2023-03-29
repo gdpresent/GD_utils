@@ -115,19 +115,19 @@ class PortfolioAnalysis:
             source_for_chart = to_source(self.cum_ret_smpl)
             return_TS_obj = figure(x_axis_type='datetime',
                         title='Simple Return' + f'({self.cum_ret_cmpd.index[0].strftime("%Y-%m-%d")} ~ {self.cum_ret_cmpd.index[-1].strftime("%Y-%m-%d")})',
-                        plot_width=1500, plot_height=400, toolbar_location=toolbar_location)
+                        width=1500, height=400, toolbar_location=toolbar_location)
         elif simple=='log':
             # Plot 로그
             source_for_chart = to_source(self.cum_ret_cmpd)
             return_TS_obj = figure(x_axis_type='datetime', y_axis_type='log', y_axis_label=r"$$\frac{P_n}{P_0}$$",
                         title='Cumulative Return(LogScaled)' + f'({self.cum_ret_cmpd.index[0].strftime("%Y-%m-%d")} ~ {self.cum_ret_cmpd.index[-1].strftime("%Y-%m-%d")})',
-                        plot_width=1500, plot_height=450, toolbar_location=toolbar_location)
+                        width=1500, height=450, toolbar_location=toolbar_location)
         else:
             # Plot 복리
             source_for_chart = to_source(self.cum_ret_cmpd-1)
             return_TS_obj = figure(x_axis_type='datetime',
                         title='Cumulative Return' + f'({self.cum_ret_cmpd.index[0].strftime("%Y-%m-%d")} ~ {self.cum_ret_cmpd.index[-1].strftime("%Y-%m-%d")})',
-                        plot_width=1500, plot_height=450, toolbar_location=toolbar_location)
+                        width=1500, height=450, toolbar_location=toolbar_location)
 
         return_TS_lgd_list = []
         for i, col in enumerate(self.cum_ret_cmpd.columns):
@@ -141,7 +141,7 @@ class PortfolioAnalysis:
         # Plot drawdown
         dd_TS_obj = figure(x_axis_type='datetime',
                     title='Drawdown',
-                    plot_width=1500, plot_height=170, toolbar_location=toolbar_location)
+                    width=1500, height=170, toolbar_location=toolbar_location)
         source_dd_TS = to_source(self.drawdown)
         dd_TS_lgd_list = []
         for i, col in enumerate(self.drawdown.columns):
@@ -156,7 +156,7 @@ class PortfolioAnalysis:
             source_R1Y_HPR = to_source(self.R1Y_HPR)
             R1Y_HPR_obj = figure(x_axis_type='datetime',
                         title='Rolling Holding Period Return',
-                        plot_width=1500, plot_height=170, toolbar_location=toolbar_location)
+                        width=1500, height=170, toolbar_location=toolbar_location)
             R1Y_HPR_lgd_list = []
             for i, col in enumerate(self.R1Y_HPR.columns):
                 p_line = R1Y_HPR_obj.line(source=source_R1Y_HPR, x='date', y=col, color=self.color_list[i], line_width=2)
@@ -332,7 +332,7 @@ class PortfolioAnalysis:
         from bokeh.models import ColumnDataSource
         df.index = pd.to_datetime(df.index, format="%Y-%m-%d")
         return ColumnDataSource(df)
-    def get_table_obj_3Y(self):
+    def get_table_obj_3Y(self,_width=350):
         from bokeh.models import ColumnDataSource
         from bokeh.models.widgets import DataTable, TableColumn
         cumrnt,cagr,std,sharpe,sortino,average_drawdown,mdd,alpha_cumrnt,alpha_cagr,alpha_std,alpha_sharpe,alpha_sortino,alpha_average_drawdown,alpha_mdd = self.key_rates_3Y
@@ -356,9 +356,9 @@ class PortfolioAnalysis:
 
         source = ColumnDataSource(static_data)
         columns = [TableColumn(field=col, title=col) for col in static_data.columns]
-        data_table_fig = DataTable(source=source, columns=columns, width=350, height=500, index_position=None)
+        data_table_fig = DataTable(source=source, columns=columns, width=_width, height=500, index_position=None)
         return data_table_fig
-    def get_table_obj_5Y(self):
+    def get_table_obj_5Y(self,_width=350):
         from bokeh.models import ColumnDataSource
         from bokeh.models.widgets import DataTable, TableColumn
         cumrnt,cagr,std,sharpe,sortino,average_drawdown,mdd,alpha_cumrnt,alpha_cagr,alpha_std,alpha_sharpe,alpha_sortino,alpha_average_drawdown,alpha_mdd = self.key_rates_5Y
@@ -382,7 +382,7 @@ class PortfolioAnalysis:
 
         source = ColumnDataSource(static_data)
         columns = [TableColumn(field=col, title=col) for col in static_data.columns]
-        data_table_fig = DataTable(source=source, columns=columns, width=350, height=500, index_position=None)
+        data_table_fig = DataTable(source=source, columns=columns, width=_width, height=500, index_position=None)
         return data_table_fig
     def get_table_obj(self, _width=350):
         from bokeh.models import ColumnDataSource
@@ -474,7 +474,7 @@ class PortfolioAnalysis:
         source_for_chart = self.to_source(self.cum_ret_smpl)
         return_TS_obj = figure(x_axis_type='datetime',
                     title='Simple Return' + f'({self.cum_ret_cmpd.index[0].strftime("%Y-%m-%d")} ~ {self.cum_ret_cmpd.index[-1].strftime("%Y-%m-%d")})',
-                    plot_width=1500, plot_height=400, toolbar_location=toolbar_location)
+                    width=1500, height=400, toolbar_location=toolbar_location)
         return_TS_lgd_list = []
         for i, col in enumerate(self.cum_ret_cmpd.columns):
             return_TS_line = return_TS_obj.line(source=source_for_chart, x=self.cum_ret_cmpd.index.name, y=col, color=self.color_list[i], line_width=2)
@@ -491,7 +491,7 @@ class PortfolioAnalysis:
         source_for_chart = self.to_source(self.cum_ret_cmpd - 1)
         return_TS_obj = figure(x_axis_type='datetime',
                                title='Cumulative Return' + f'({self.cum_ret_cmpd.index[0].strftime("%Y-%m-%d")} ~ {self.cum_ret_cmpd.index[-1].strftime("%Y-%m-%d")})',
-                               plot_width=1500, plot_height=450, toolbar_location=toolbar_location)
+                               width=1500, height=450, toolbar_location=toolbar_location)
 
         return_TS_lgd_list = []
         for i, col in enumerate(self.cum_ret_cmpd.columns):
@@ -510,7 +510,7 @@ class PortfolioAnalysis:
         source_for_chart = self.to_source(self.cum_ret_cmpd)
         return_TS_obj = figure(x_axis_type='datetime', y_axis_type='log', y_axis_label=r"$$\frac{P_n}{P_0}$$",
                                title='Cumulative Return(LogScaled)' + f'({self.cum_ret_cmpd.index[0].strftime("%Y-%m-%d")} ~ {self.cum_ret_cmpd.index[-1].strftime("%Y-%m-%d")})',
-                               plot_width=1500, plot_height=450, toolbar_location=toolbar_location)
+                               width=1500, height=450, toolbar_location=toolbar_location)
         return_TS_lgd_list = []
         for i, col in enumerate(self.cum_ret_cmpd.columns):
             return_TS_line = return_TS_obj.line(source=source_for_chart, x=self.cum_ret_cmpd.index.name, y=col,
@@ -527,7 +527,7 @@ class PortfolioAnalysis:
         # Plot drawdown
         dd_TS_obj = figure(x_axis_type='datetime',
                     title='Drawdown',
-                    plot_width=1500, plot_height=170, toolbar_location=toolbar_location)
+                    width=1500, height=170, toolbar_location=toolbar_location)
         source_dd_TS = self.to_source(self.drawdown)
         dd_TS_lgd_list = []
         for i, col in enumerate(self.drawdown.columns):
@@ -544,7 +544,7 @@ class PortfolioAnalysis:
 
         RllnCAGR_TS_obj = figure(x_axis_type='datetime',
                     title='Rolling CAGR(6M)',
-                    plot_width=1500, plot_height=200, toolbar_location=toolbar_location)
+                    width=1500, height=200, toolbar_location=toolbar_location)
         source_RllnCAGR_TS = self.to_source(self.rolling_CAGR_6M)
         RllnCAGR_TS_lgd_list = []
         for i, col in enumerate(self.rolling_CAGR_6M.columns):
@@ -561,8 +561,8 @@ class PortfolioAnalysis:
 
         Rllnstd_TS_obj = figure(x_axis_type='datetime',
                     title='Rolling Standard Deviation(6M)',
-                    plot_width=1500
-                                , plot_height=200, toolbar_location=toolbar_location)
+                    width=1500
+                                , height=200, toolbar_location=toolbar_location)
         source_Rllnstd_TS = self.to_source(self.rolling_std_6M)
         Rllnstd_TS_lgd_list = []
         for i, col in enumerate(self.rolling_std_6M.columns):
@@ -579,7 +579,7 @@ class PortfolioAnalysis:
 
         Rllnshrp_TS_obj = figure(x_axis_type='datetime',
                     title='Rolling Sharpe(6M)',
-                    plot_width=1500, plot_height=200, toolbar_location=toolbar_location)
+                    width=1500, height=200, toolbar_location=toolbar_location)
         source_Rllnshrp_TS = self.to_source(self.rolling_sharpe_6M)
         Rllnshrp_TS_lgd_list = []
         for i, col in enumerate(self.rolling_sharpe_6M.columns):
@@ -601,7 +601,7 @@ class PortfolioAnalysis:
             # x_axis_type='datetime',
             x_range=input_Data.index.to_list(),
             title='Yearly Return',
-            plot_width=1500, plot_height=200, toolbar_location=toolbar_location)
+            width=1500, height=200, toolbar_location=toolbar_location)
 
         n_col = len(input_Data.columns)
         n_col_ord = list(range(-n_col // 2 + 1, n_col // 2 + 1))
@@ -627,7 +627,7 @@ class PortfolioAnalysis:
             # x_axis_type='datetime',
             x_range=input_Data.index.to_list(),
             title='Yearly Alpha',
-            plot_width=1500, plot_height=200, toolbar_location=toolbar_location)
+            width=1500, height=200, toolbar_location=toolbar_location)
 
         n_col = len(input_Data.columns)
         n_col_ord = list(range(-n_col // 2 + 1, n_col // 2 + 1))
@@ -649,7 +649,7 @@ class PortfolioAnalysis:
             source_R1Y_HPR = self.to_source(self.R1Y_HPR)
             R1Y_HPR_obj = figure(x_axis_type='datetime',
                                  title='Rolling Holding Period Return',
-                                 plot_width=1500, plot_height=170, toolbar_location=toolbar_location)
+                                 width=1500, height=170, toolbar_location=toolbar_location)
             R1Y_HPR_lgd_list = []
             for i, col in enumerate(self.R1Y_HPR.columns):
                 p_line = R1Y_HPR_obj.line(source=source_R1Y_HPR, x='date', y=col, color=self.color_list[i],
@@ -689,7 +689,7 @@ class PortfolioAnalysis:
                              title="Monthly Return",
                              x_range=months, y_range=years,
                              x_axis_location="above",
-                             plot_width=750, plot_height=400,
+                             width=750, height=400,
                              toolbar_location=toolbar_location,
                              tooltips=[('date', '@Year @Month'), ('value', f'@value%')]
                             )
@@ -752,7 +752,7 @@ class PortfolioAnalysis:
         alpha_fig_obj = figure(
             title="Monthly Alpha",
             x_range=months, y_range=years,
-            x_axis_location="above", plot_width=750, plot_height=400,
+            x_axis_location="above", width=750, height=400,
             toolbar_location=toolbar_location,
             tooltips=[('date', '@Year @Month'), ('value', f'@value%')]
         )
@@ -805,7 +805,7 @@ class PortfolioAnalysis:
         estmt_pdf = stats.gaussian_kde(monthly_rtns).pdf(edges)
 
         dist_fig_obj = figure(title=f'Monthly Return Distribution  (mean={m}, std={std}, skewness={skwnss}, kurtosis={krts})', y_axis_label=r"Density", x_axis_label=r"Monthly Return",
-                              plot_width=750, plot_height=400,
+                              width=750, height=400,
                               toolbar_location=toolbar_location)
         dist_fig_obj.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:], fill_color=self.color_list[0], line_color="white", alpha=0.5)
         dist_fig_obj.line(edges, estmt_pdf, line_color="#ff8888", line_width=4, alpha=0.7, legend_label="PDF", )
@@ -832,7 +832,7 @@ class PortfolioAnalysis:
         estmt_pdf = stats.gaussian_kde(monthly_rtns).pdf(edges)
 
         dist_fig_obj = figure(title=f'Monthly Alpha Distribution  (mean={m}, std={std}, skewness={skwnss}, kurtosis={krts})', y_axis_label=r"Density", x_axis_label=r"Monthly Alpha",
-                              plot_width=750, plot_height=400,
+                              width=750, height=400,
                               toolbar_location=toolbar_location)
         dist_fig_obj.quad(top=hist, bottom=0, left=edges[:-1], right=edges[1:], fill_color=self.color_list[0], line_color="white", alpha=0.5)
         dist_fig_obj.line(edges, estmt_pdf, line_color="#ff8888", line_width=4, alpha=0.7, legend_label="PDF", )
@@ -865,9 +865,9 @@ class PortfolioAnalysis:
         title_text = f'10분위 연환산 수익률(r_value:{round(rval,2)}, p_value:{round(pval,2)}, std_err:{round(stderr,2)})'
 
         qun_sourse = ColumnDataSource(data = dict(분위=list(CAGR_index), CAGR =CAGR_values, color=self.deciles_bar_color_list(10, 1)))
-        qun = figure(x_range=list(CAGR_index), plot_height=440, title=title_text, plot_width=390)
+        qun = figure(x_range=list(CAGR_index), height=440, title=title_text, width=390)
         qun.vbar(x='분위', top='CAGR', width=0.9,  source=qun_sourse, color='color')
-        qun.line(range(1,len(CAGR_index)), [x*slp + itrct for x in range(0,len(CAGR_index))], color='black', line_width=2)
+        qun.line(list(range(1,len(CAGR_index))), [x*slp + itrct for x in range(1,len(CAGR_index))], color='black', line_width=2)
         qun.xgrid.grid_line_color = None
         qun.toolbar.logo = None
         qun.toolbar_location = None

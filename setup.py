@@ -1,7 +1,7 @@
 import setuptools
 setuptools.setup(
                 name="GD_utils",
-                version="0.2.0.9",
+                version="0.2.0.39",
                 license='MIT',
                 author="GD park",
                 author_email="gdpresent@naver.com",

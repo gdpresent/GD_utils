@@ -11,6 +11,6 @@ test_df_day_price = test_df_day.pivot(index='date', columns='종목코드', valu
 sectors6 = test_df.groupby(['date', 'sector'])['종목코드'].count().groupby('sector').mean().apply(lambda x:np.nan if x<10 else 1).dropna().index
 from GD_utils.factor_calculator import FactorAnalysis
 self = FactorAnalysis(test_df, test_df_day_price,BM)
-asdadsd
 
-self.factor_report('매출총이익_매출액', False, outputname='./UnnamedReport')
+
+self.factor_report('현금의증가_type_1_자산총계_ZoY', False, outputname='./UnnamedReport')

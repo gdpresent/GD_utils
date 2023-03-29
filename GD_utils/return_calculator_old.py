@@ -50,7 +50,7 @@ class calculator:
 
         # apply trading cost
         rb_d = output.index[0]
-        output.loc[rb_d] = output.loc[rb_d] - self.cost*self.rb_tr_ratio.loc[rb_d]
+        output.loc[rb_d] = output.loc[rb_d] - self.cost*self.rebal_date_turnover_ratio.loc[rb_d]
         return output
     def calc_bt_daily_ratio(self, grouped_price):
         gr_rtn = grouped_price.set_index('gr_idx').pct_change().fillna(0).add(1).cumprod()#.sub(1)
