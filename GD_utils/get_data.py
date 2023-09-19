@@ -3,10 +3,15 @@ from datetime import datetime
 import requests
 import pandas as pd
 from bs4 import BeautifulSoup
+<<<<<<< HEAD
 from tqdm import tqdm
 import yfinance as yf
 yf.pdr_override()
 
+=======
+import yfinance as yf
+yf.pdr_override()
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
 # 네이버 차트에서 수정주가(종가, 시가)
 def get_data_naver(company_code):
     # count=3000에서 3000은 과거 3,000 영업일간의 데이터를 의미. 사용자가 조절 가능
@@ -99,6 +104,19 @@ def get_data_yahoo_open_close(name):
 
 # 미국 매크로
 def get_US_macro(today_not_str=pd.Timestamp.now()):
+<<<<<<< HEAD
+=======
+    # investing.com 직접 받을 데이터 .... ㅈㅅ
+    # todo 2. CHINA PMI : https://www.investing.com/economic-calendar/chinese-manufacturing-pmi-594
+    # PMICH = pd.read_csv('./data/macro/PMI_CH.csv', parse_dates=['date'], index_col='date').add_prefix('PMICH_')
+    # todo 3. US ISM: https://www.investing.com/economic-calendar/ism-manufacturing-pmi-173
+    # ISMUS = pd.read_csv('./data/macro/ISM_US.csv', parse_dates=['date'], index_col='date').add_prefix('ISMUS_')
+
+    # if ISMUS.index.max() < pd.to_datetime(self.today.strftime('%Y-%m-%d')):
+    #     print('직접 다운받을 데이터 추가 후 사용하십시오.')
+    #     print(r'CHI PMI : https://www.investing.com/economic-calendar/chinese-manufacturing-pmi-594')
+    #     print(r'USA PMI : https://www.investing.com/economic-calendar/ism-manufacturing-pmi-173')
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
 
     # investing.com 크롤링으로 받을 데이터
     # ch_name = {'Close': 'close', 'Open': 'open', 'High': 'high', 'Low': 'low'}
@@ -159,6 +177,7 @@ def get_US_macro(today_not_str=pd.Timestamp.now()):
     # (10-Year Breakeven Inflation Rate)
     # 래깅 필요 없음
     BEI = pdr.get_data_fred('T10YIE', start='1978-01-01', end=today_not_str.strftime('%Y-%m-%d')).rename(columns={'T10YIE': 'BEI'}).rename_axis('date', axis=0)
+<<<<<<< HEAD
     TIPS10Y = pdr.get_data_fred('DFII10', start='1978-01-01', end=today_not_str.strftime('%Y-%m-%d')).rename(columns={'DFII10': 'TIPS10Y'}).rename_axis('date', axis=0)
 
 
@@ -169,6 +188,17 @@ def get_US_macro(today_not_str=pd.Timestamp.now()):
     CPI.loc[CPI.index[-1] + pd.DateOffset(months=1)] = CPI.iloc[-1]
     CPI = CPI.shift(1).dropna()
 
+=======
+
+
+    # CPI(Consumer Price Index: All Items for the United States)
+    # : https://fred.stlouisfed.org/series/USACPIALLMINMEI # (Index 2015=100, Not Seasonally Adjusted, Monthly)
+    # release: 익월 중순 15일 전후 -> 익월말일에 최초관측가능하다고 하자
+    CPI = data[("USA",'CPALTT01','IXOBSA')].rename("CPI")
+    CPI.loc[CPI.index[-1] + pd.DateOffset(months=1)] = CPI.iloc[-1]
+    CPI = CPI.shift(1).dropna()
+
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
     CPI_YoY = CPI.pct_change(12).rename('CPI_YoY')
     CPI_MoM = CPI.pct_change(1).rename('CPI_MoM')
     # CPI_YoY_z48 = CPI.pct_change(12).sub(CPI.pct_change(12).rolling(min_periods=48, window=48).mean()).div(CPI.pct_change(12).rolling(min_periods=48, window=48).std()).rename('CPI_YoY_z48')
@@ -197,6 +227,7 @@ def get_US_macro(today_not_str=pd.Timestamp.now()):
     # 7영업일 래깅
     # TEDspread = pdr.get_data_fred('TEDRATE', start='1978-01-01', end=today_not_str.strftime('%Y-%m-%d')).rename(columns={'TEDRATE': 'TEDspread'})
     # TEDspread.index.name = 'date'
+<<<<<<< HEAD
 
     # Leading Indicators OECD: Reference series: Gross Domestic Product (GDP): Normalised for the United States:
     # 3개월 뒤(익익익월) 말일자에 최초 관측할 수 있었다고 하자.
@@ -344,10 +375,13 @@ def get_US_macro_except_cif(today_not_str=pd.Timestamp.now()):
     # 7영업일 래깅
     # TEDspread = pdr.get_data_fred('TEDRATE', start='1978-01-01', end=today_not_str.strftime('%Y-%m-%d')).rename(columns={'TEDRATE': 'TEDspread'})
     # TEDspread.index.name = 'date'
+=======
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
 
     # Leading Indicators OECD: Reference series: Gross Domestic Product (GDP): Normalised for the United States:
     # 3개월 뒤(익익익월) 말일자에 최초 관측할 수 있었다고 하자.
     # CLI = pdr.get_data_fred('USALORSGPNOSTSAM', start='1978-01-01', end=today_not_str.strftime('%Y-%m-%d')).rename(columns={'USALORSGPNOSTSAM': 'CLI'})
+<<<<<<< HEAD
     # US_GDP = data[('USA', 'LORSGPNO', 'STSA')].rename("GDP")
     # US_GDP.loc[US_GDP.index[-1] + pd.DateOffset(months=1)] = US_GDP.iloc[-1]
     # US_GDP = US_GDP.shift(3)
@@ -358,14 +392,33 @@ def get_US_macro_except_cif(today_not_str=pd.Timestamp.now()):
     # CPI_YoY_z72 = CPI.pct_change(12).sub(CPI.pct_change(12).rolling(min_periods=72, window=72).mean()).div(CPI.pct_change(12).rolling(min_periods=72, window=72).std()).rename('CPI_YoY_z72')
     # GDP = pd.concat([US_GDP, GDP_YoY, GDP_MoM], axis=1) #, CPI_YoY_z48, CPI_YoY_z60, CPI_YoY_z72
     # GDP = pd.concat([GDP, End_Month_Dates], axis=1).fillna(method='ffill').groupby(pd.Grouper(freq='BM')).tail(1).drop('SNP500', axis=1)
+=======
+    US_GDP = data[('USA', 'LORSGPNO', 'STSA')].rename("GDP")
+    US_GDP.loc[US_GDP.index[-1] + pd.DateOffset(months=1)] = US_GDP.iloc[-1]
+    US_GDP = US_GDP.shift(3)
+    GDP_YoY = US_GDP.pct_change(12).rename('GDP_YoY')
+    GDP_MoM = US_GDP.pct_change(1).rename('GDP_MoM')
+    # CPI_YoY_z48 = CPI.pct_change(12).sub(CPI.pct_change(12).rolling(min_periods=48, window=48).mean()).div(CPI.pct_change(12).rolling(min_periods=48, window=48).std()).rename('CPI_YoY_z48')
+    # CPI_YoY_z60 = CPI.pct_change(12).sub(CPI.pct_change(12).rolling(min_periods=60, window=60).mean()).div(CPI.pct_change(12).rolling(min_periods=60, window=60).std()).rename('CPI_YoY_z60')
+    # CPI_YoY_z72 = CPI.pct_change(12).sub(CPI.pct_change(12).rolling(min_periods=72, window=72).mean()).div(CPI.pct_change(12).rolling(min_periods=72, window=72).std()).rename('CPI_YoY_z72')
+    GDP = pd.concat([US_GDP, GDP_YoY, GDP_MoM], axis=1) #, CPI_YoY_z48, CPI_YoY_z60, CPI_YoY_z72
+    GDP = pd.concat([GDP, End_Month_Dates], axis=1).fillna(method='ffill').groupby(pd.Grouper(freq='BM')).tail(1).drop('SNP500', axis=1)
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
 
     # CLI: Leading Indicators OECD: Leading indicators: CLI: Normalised for the United States
     # https://fred.stlouisfed.org/series/USALOLITONOSTSAM
     # 익월 말일자에 최초 관측할 수 있었다고 하자.
+<<<<<<< HEAD
     # CLI_Norm = data[('USA', 'LOLITONO', 'STSA')].rename("CLI_Norm")
     # CLI_Norm.loc[CLI_Norm.index[-1] + pd.DateOffset(months=1)] = CLI_Norm.iloc[-1]
     # CLI_Norm = CLI_Norm.shift(1)
     # CLI_Norm = pd.concat([CLI_Norm, End_Month_Dates], axis=1).fillna(method='ffill').groupby(pd.Grouper(freq='BM')).tail(1).drop('SNP500', axis=1)
+=======
+    CLI_Norm = data[('USA', 'LOLITONO', 'STSA')].rename("CLI_Norm")
+    CLI_Norm.loc[CLI_Norm.index[-1] + pd.DateOffset(months=1)] = CLI_Norm.iloc[-1]
+    CLI_Norm = CLI_Norm.shift(1)
+    CLI_Norm = pd.concat([CLI_Norm, End_Month_Dates], axis=1).fillna(method='ffill').groupby(pd.Grouper(freq='BM')).tail(1).drop('SNP500', axis=1)
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
 
     # CLI_Amp = data[('USA', 'LOLITOAA', 'STSA')].rename("CLI_Amp")
     # CLI_Amp.loc[CLI_Amp.index[-1] + pd.DateOffset(months=1)] = CLI_Amp.iloc[-1]
@@ -382,7 +435,10 @@ def get_US_macro_except_cif(today_not_str=pd.Timestamp.now()):
 
     # BBB 이상 회사채(잔존만기 1년 이상) - > OAS로 Embedded Option Adjusted
     Credit_Spread = pdr.get_data_fred('BAMLC0A0CM', start='1978-01-01', end=today_not_str.strftime('%Y-%m-%d')).rename(columns={'BAMLC0A0CM': 'CreditSpread'}).rename_axis(index='date')
+<<<<<<< HEAD
     WTI=pdr.get_data_fred('DCOILWTICO',start='1955-01-01', end=today_not_str.strftime('%Y-%m-%d')).rename(columns={'DCOILWTICO': 'WTI'}).rename_axis('date', axis=0)
+=======
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
 
 
 
@@ -406,6 +462,7 @@ def get_US_macro_except_cif(today_not_str=pd.Timestamp.now()):
     DATA = DATA.merge(USBond_10Y.add_suffix("(D)"), how='outer', on='date')
     DATA = DATA.merge(USBond_30Y.add_suffix("(D)"), how='outer', on='date')
     DATA = DATA.merge(BEI.add_suffix("(D)"), how='outer', on='date')
+<<<<<<< HEAD
     DATA = DATA.merge(TIPS10Y.add_suffix("(D)"), how='outer', on='date')
     DATA = DATA.merge(Credit_Spread.add_suffix("(D)"), how='outer', on='date')
     DATA = DATA.merge(WTI.add_suffix("(D)"), how='outer', on='date')
@@ -415,6 +472,15 @@ def get_US_macro_except_cif(today_not_str=pd.Timestamp.now()):
     DATA = DATA.merge(unemployment.add_suffix("(M)"), how='outer', on='date')
     DATA = DATA.merge(CPI.add_suffix("(M)"), how='outer', on='date')
     # DATA = DATA.merge(GDP.add_suffix("(M)"), how='outer', on='date')
+=======
+    DATA = DATA.merge(Credit_Spread.add_suffix("(D)"), how='outer', on='date')
+    DATA = DATA.sort_index().fillna(method='ffill')
+    DATA = DATA.merge(CLI_Norm.add_suffix("(M)"), how='outer', on='date')
+    # DATA = DATA.merge(CLI_Amp.add_suffix("(M)"), how='outer', on='date')
+    DATA = DATA.merge(unemployment.add_suffix("(M)"), how='outer', on='date')
+    DATA = DATA.merge(CPI.add_suffix("(M)"), how='outer', on='date')
+    DATA = DATA.merge(GDP.add_suffix("(M)"), how='outer', on='date')
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
 
     DATA = DATA.sort_index()
     DATA = DATA.loc[SNP500.index]
@@ -580,6 +646,7 @@ def get_KRmacro_data(your_key):
     """
 
     # todo: 한국은행 데이터
+
     KRCD_3M = get_BOK_macro('금리', 'CD91D', your_key).rename(columns={"CD91D": 'KRCD3M'}) # daily
     KRCP_3M = get_BOK_macro('금리', 'CP91D', your_key).rename(columns={"CP91D": 'KRCP3M'}) # daily
     KRMonStab_1Y = get_BOK_macro('금리', '통안증권1Y', your_key).rename(columns={"통안증권1Y": 'KRMonStab1Y'}) #daily
@@ -629,8 +696,11 @@ def get_KRCPI_total(your_key):
 
 # 공공데이터 포털 API
 def get_Export_PublicDataPortal(your_key, today=pd.Timestamp.now().strftime("%Y-%m")):
+<<<<<<< HEAD
     import urllib3
     urllib3.disable_warnings()
+=======
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
     _col_replace_ = {'balpayments': '무역수지(달러)', 'expcnt': '수출건수', 'expdlr': '수출금액(달러)', 'impcnt': '수입건수', 'impdlr': '수입금액(달러)', 'year': 'date'}
     stt_date = pd.to_datetime('1989-01')
     today_ym = pd.to_datetime(today)
@@ -640,7 +710,11 @@ def get_Export_PublicDataPortal(your_key, today=pd.Timestamp.now().strftime("%Y-
     dates_range = [x.strftime("%Y%m") for x in pd.date_range(start=stt_date, end=today_ym, freq='MS')]
 
     output = pd.DataFrame()
+<<<<<<< HEAD
     for year_list in tqdm(list(partition(dates_range, 12)), desc='GongGong Data Portal'):
+=======
+    for year_list in list(partition(dates_range, 12)):
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
         ImExPort_Data_API = f'https://apis.data.go.kr/1220000/Newtrade/getNewtradeList?serviceKey={your_key}&strtYymm={year_list[0]}&endYymm={year_list[-1]}'
         response = requests.get(ImExPort_Data_API, verify=False)
         soup = BeautifulSoup(response.content,'html.parser')
@@ -733,6 +807,7 @@ def get_economic_schedule(date_target=None):
     # col = bs_obj.select('h2#calendar-date')[0].text
     # col = bs_obj.select('div', {'class':'calendar_list_box > date', 'id':date_dash})
     # col = bs_obj.find_all('div', 'calendar_list_box', 'date', {'id': f"{date_dash}"})
+<<<<<<< HEAD
     bs_obj_read=bs_obj.find_all('div', {"class": 'calendar_list_box', 'id': f"{date_dash}"})
     if len(bs_obj_read)>0:
         col = bs_obj_read[0].find_all('h3','date')[0].text
@@ -756,3 +831,15 @@ if __name__ == "__main__":
     US_macro = get_US_macro_except_cif()
     KR_macro = get_KRmacro_data('Z034ROZNL01ZJFFCB3K0')
     export=get_Export_PublicDataPortal('Z7AubMAAhdoq2sLF3JiHlGXoJfjBedvBF%2BvmPH20t3wlWI6lVbcot1gPZPkI6nuP6vkJywAkQV5tmcfkNS3JYw%3D%3D')
+=======
+    col = bs_obj.find_all('div', {"class":'calendar_list_box', 'id': f"{date_dash}"})[0].find_all('h3','date')[0].text
+
+    # objs = bs_obj.select('div.calendar_info_list > li')
+    objs = bs_obj.find_all('div', {"class":'calendar_list_box', 'id': f"{date_dash}"})[0].find_all('li')
+    output = pd.DataFrame(columns=[col])
+    for i in range(len(objs)):
+        output.loc[i, col] = objs[i].text
+    output['date'] = pd.to_datetime(date)
+    output = output.set_index('date')
+    return output
+>>>>>>> e38ddaef1ede533b707596e544d9ce9afe98915b
