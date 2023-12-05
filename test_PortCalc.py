@@ -14,3 +14,4 @@ gdu.report(test_df, last_BM=True)
 gdu.basic_report(test_df)
 
 # self.factor_report('매출총이익_매출액', False, outputname='./UnnamedReport')
+

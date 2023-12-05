@@ -723,7 +723,7 @@ class PortfolioAnalysis:
                           text_color='#000000',
                           text_align='center',
                           text_alpha=0.75,
-                          x_offset=0, y_offset=-5, source=source_for_heatmap_annotation, render_mode='canvas')
+                          x_offset=0, y_offset=-5, source=source_for_heatmap_annotation)
         rtn_fig_obj.add_layout(labels)
 
         return rtn_fig_obj
@@ -786,7 +786,7 @@ class PortfolioAnalysis:
                           text_color='#000000',
                           text_align='center',
                           text_alpha=0.75,
-                          x_offset=0, y_offset=-5, source=source_for_heatmap_annotation, render_mode='canvas')
+                          x_offset=0, y_offset=-5, source=source_for_heatmap_annotation)
         alpha_fig_obj.add_layout(labels)
 
         return alpha_fig_obj
