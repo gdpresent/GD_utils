@@ -567,6 +567,32 @@ class FactorAnalysis_4Universes:
 )
         return
 
+    def get_Decile_result(self, col_name, drtion):
+        df_to_calc = self._df[['date', '종목코드', col_name]].copy()
+        rank_df = df_to_calc.assign(pct_rank=df_to_calc.groupby('date')[col_name].rank(method='first', ascending=drtion, pct=True))
+        rank_piv = rank_df.pivot(index='date', columns='종목코드', values='pct_rank').dropna(how='all', axis=1).dropna(how='all', axis=0)
+
+
+        cum_rnt_df = pd.DataFrame()
+        for i in range(0, 10):
+            n_q = (rank_piv > i * 0.1) & (rank_piv <= (1 + i) * 0.1)
+            n_q = n_q[n_q]
+            n_q = n_q.stack().reset_index('종목코드').assign(w=lambda x: x.groupby('date')['종목코드'].count().rdiv(1)).pivot(columns='종목코드', values='w').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
+
+
+            port_calc = return_calculator(n_q, self.cost)
+            cum_rnt_df[f'P{i + 1}'] = port_calc.backtest_cumulative_return
+
+        IC_df = cum_rnt_df.iloc[-1].rank(ascending=False, method='first').reset_index()
+        IC_df['index'] = IC_df['index'].str[1:].astype(int)
+        IC_df.columns = ['tile',col_name]
+
+        metric_table = self.get_table(cum_rnt_df)
+        metric_table['IC'] = IC_df.corr(method='spearman')[col_name]['tile']
+        metric_table['num_data_mean'] = rank_piv.count(1).mean()
+        metric_table['num_data_min'] = rank_piv.count(1).min()
+
+        return cum_rnt_df, metric_table
     def factor_result(self, col_name, drtion):
         cum_rnt_decile, metric_table_decile = self.get_Decile_result(col_name, drtion)
         return cum_rnt_decile, metric_table_decile
