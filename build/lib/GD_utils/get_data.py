@@ -4,6 +4,7 @@ import requests
 import pandas as pd
 from bs4 import BeautifulSoup
 from tqdm import tqdm
+import time
 import yfinance as yf
 yf.pdr_override()
 
@@ -661,6 +662,7 @@ def get_Export_PublicDataPortal(your_key, today=pd.Timestamp.now().strftime("%Y-
                     dict_update[v] = pd.Timestamp(value)
             data_temp=pd.concat([data_temp,pd.DataFrame([dict_update])], axis=0)
         output = pd.concat([output, data_temp.dropna(axis=0)], axis=0)
+        time.sleep(3)
     # output.set_index('date').to_excel(f'./수출입총괄_{today}.xlsx')
     return output
 
@@ -751,8 +753,10 @@ def get_economic_schedule(date_target=None):
 
 
 if __name__ == "__main__":
-    today = pd.Timestamp.today().strftime("%Y%m%d")
+    pass
 
-    US_macro = get_US_macro_except_cif()
-    KR_macro = get_KRmacro_data('Z034ROZNL01ZJFFCB3K0')
-    export=get_Export_PublicDataPortal('Z7AubMAAhdoq2sLF3JiHlGXoJfjBedvBF%2BvmPH20t3wlWI6lVbcot1gPZPkI6nuP6vkJywAkQV5tmcfkNS3JYw%3D%3D')
+    # today = pd.Timestamp.today().strftime("%Y%m%d")
+    #
+    # US_macro = get_US_macro_except_cif()
+    # KR_macro = get_KRmacro_data('Z034ROZNL01ZJFFCB3K0')
+    # export=get_Export_PublicDataPortal('Z7AubMAAhdoq2sLF3JiHlGXoJfjBedvBF%2BvmPH20t3wlWI6lVbcot1gPZPkI6nuP6vkJywAkQV5tmcfkNS3JYw%3D%3D')

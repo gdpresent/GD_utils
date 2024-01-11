@@ -5,10 +5,6 @@ import numpy as np
 from statsmodels.tsa.api import Holt
 import copy
 from math import *
-
-# AE 는 기본적으로 주성분 분석(PCA)으로 처리하는 일차원 데이터 처리 방식을 딥러닝 방식으로 확장한 것
-# 입력 데이터의 특징을 효율적으로 찾는 것이 목적 (저차원화를 통한 데이터 관계 관찰, 데이터 압축, 디노이징)
-# 신경망을 사용하기 때문에 데이터 구성이 복잡하거나 데이터가 대량인 경우 PCA 보다 더 효과적
 def portfolio(returns, weights):
     weights = np.array(weights)
     rets = returns.mean() * 252
@@ -25,6 +21,11 @@ def portfolio(returns, weights):
 
     return np.array([P_ret, P_vol, P_sharpe, P_sortino])
 
+
+
+# AE 는 기본적으로 주성분 분석(PCA)으로 처리하는 일차원 데이터 처리 방식을 딥러닝 방식으로 확장한 것
+# 입력 데이터의 특징을 효율적으로 찾는 것이 목적 (저차원화를 통한 데이터 관계 관찰, 데이터 압축, 디노이징)
+# 신경망을 사용하기 때문에 데이터 구성이 복잡하거나 데이터가 대량인 경우 PCA 보다 더 효과적
 class AutoencoderAgent:
 
     def __init__(

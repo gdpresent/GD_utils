@@ -24,6 +24,7 @@ def report(base_price, name='./Unnamed', display=True, toolbar_location='above',
     PA.report(display=display, toolbar_location=toolbar_location)
 def single_report(base_price, name='./Unnamed', display=True, toolbar_location='above', last_BM=True):
     # base_price = test_df[[test_df.columns[0]]].copy()
+    # base_price = test_df[test_df.columns[-2:]].copy()
     b_price = base_price.sort_index().rename_axis('date', axis=0).dropna()
 
     daily_return = b_price.pct_change().fillna(0)
@@ -33,3 +34,6 @@ def single_report(base_price, name='./Unnamed', display=True, toolbar_location='
 
     PA = gdu.portfolio_calculator.PortfolioAnalysis(daily_return, outputname=name, BM_name='KOSPI', last_BM=last_BM)
     PA.single_report(display=display, toolbar_location=toolbar_location)
+
+
+
