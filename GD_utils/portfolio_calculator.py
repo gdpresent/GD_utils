@@ -55,7 +55,6 @@ class PortfolioAnalysis:
         self.yearly_return = self.daily_return_to_BM.add(1).groupby(pd.Grouper(freq='BA')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
         self.yearly_alpha = self.daily_alpha.add(1).groupby(pd.Grouper(freq='BA')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
 
-
         self.monthly_return = self.daily_return_to_BM.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
         self.monthly_alpha = self.daily_alpha.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
         self.monthly_return_WR = (self.monthly_return > 0).agg([sum, len]).apply(lambda x: x['sum'] / x['len']).iloc[0]
@@ -922,7 +921,6 @@ class PortfolioAnalysis:
                 BM = gdu.get_data.get_data_yahoo_close(BM_name)
         return BM
 
-
     def _calculate_key_rates(self, daily_returns, daily_alpha):
         # daily_returns, daily_alpha = self.daily_return.iloc[-252 * 3:].copy(),  self.daily_alpha.iloc[-252 * 3:].copy()
         cum_ret_cmpd = daily_returns.add(1).cumprod()
@@ -987,3 +985,93 @@ class PortfolioAnalysis:
         Rolling_HPR_1Y_WR = (Rolling_HPR_1Y > 0).sum() / Rolling_HPR_1Y.shape[0]
         return Rolling_HPR_1Y, Rolling_HPR_1Y_WR
 
+class PortfolioAnalysis_v2:
+    def __init__(self, BM_w_df, Port_w_df, outputname='./Unnamed'):
+
+        BM_p_df = gdu.calc_return(BM_w_df, cost=0, n_days_after=2)
+        Port_p_df = gdu.calc_return(Port_w_df.div(100), cost=0, n_days_after=2)
+        from return_calculator import return_calculator
+        self=return_calculator(BM_w_df)
+
+
+        # 포트폴리오 일별 수익률
+        self.daily_return = daily_return
+        # 포트폴리오 복리수익률
+        self.cum_ret_cmpd = self.daily_return.add(1).cumprod()
+        self.cum_ret_cmpd.iloc[0] = 1
+        # 포트폴리오 단리수익률
+        self.cum_ret_smpl = self.daily_return.cumsum()
+        # 분석 기간
+        self.num_years = self.get_num_year(self.daily_return.index.year.unique())
+
+        # 각종 포트폴리오 성과지표
+        self.cagr = self._calculate_cagr(self.cum_ret_cmpd, self.num_years)
+        self.std = self._calculate_std(self.daily_return,self.num_years)
+
+        self.rolling_std_6M = self.daily_return.rolling(min_periods=120, window=120).apply(lambda x:self._calculate_std(x, self.num_years))
+        self.rolling_CAGR_6M = self.cum_ret_cmpd.rolling(min_periods=120, window=120).apply(lambda x:self._calculate_cagr(x, self.num_years))
+        self.rolling_sharpe_6M = self.rolling_CAGR_6M/self.rolling_std_6M
+
+        self.sharpe = self.cagr/self.std
+        self.sortino = self.cagr/self._calculate_downsiderisk(self.daily_return,self.num_years)
+        self.drawdown = self._calculate_dd(self.cum_ret_cmpd)
+        self.average_drawdown = self.drawdown.mean()
+        self.mdd = self._calculate_mdd(self.drawdown)
+
+
+        # BM대비 성과지표
+        if last_BM == False:
+            self.BM = self.get_BM(BM_name)
+            print(f"BM장착=================== {BM_name}")
+            self.daily_return_to_BM = self.daily_return.copy()
+        else:
+            self.BM = self.daily_return.iloc[:,[-1]].add(1).cumprod().fillna(1)
+            self.daily_return_to_BM = self.daily_return.iloc[:, :-1]
+
+        # BM 대비성과
+        self.daily_alpha = self.daily_return_to_BM.sub(self.BM.iloc[:, 0].pct_change(), axis=0).dropna()
+        self.cum_alpha_cmpd = self.daily_alpha.add(1).cumprod()
+
+        self.alpha_cagr = self._calculate_cagr(self.cum_alpha_cmpd, self.num_years)
+        self.alpha_std = self._calculate_std(self.daily_alpha,self.num_years)
+        self.alpha_sharpe = self.alpha_cagr/self.alpha_std
+        self.alpha_sortino = self.alpha_cagr/self._calculate_downsiderisk(self.daily_alpha,self.num_years)
+        self.alpha_drawdown = self._calculate_dd(self.cum_alpha_cmpd)
+        self.alpha_average_drawdown = self.alpha_drawdown.mean()
+        self.alpha_mdd = self._calculate_mdd(self.alpha_drawdown)
+
+        # Monthly & Yearly
+        self.yearly_return = self.daily_return_to_BM.add(1).groupby(pd.Grouper(freq='BA')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
+        self.yearly_alpha = self.daily_alpha.add(1).groupby(pd.Grouper(freq='BA')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
+
+        self.monthly_return = self.daily_return_to_BM.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
+        self.monthly_alpha = self.daily_alpha.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)).sub(1).droplevel(0)
+        self.monthly_return_WR = (self.monthly_return > 0).agg([sum, len]).apply(lambda x: x['sum'] / x['len']).iloc[0]
+        self.monthly_alpha_WR = (self.monthly_alpha > 0).agg([sum, len]).apply(lambda x: x['sum'] / x['len']).iloc[0]
+
+        try:
+            self.R1Y_HPR, self.R1Y_HPR_WR = self._holding_period_return(self.cum_ret_cmpd, self.num_years)
+            self.R1Y_HPA, self.R1Y_HPA_WR = self._holding_period_return(self.cum_alpha_cmpd, self.num_years)
+            self.key_rates_3Y = self._calculate_key_rates(self.daily_return.iloc[-252*3:], self.daily_alpha.iloc[-252*3:])
+            self.key_rates_5Y = self._calculate_key_rates(self.daily_return.iloc[-252*5:], self.daily_alpha.iloc[-252*5:])
+        except:
+            pass
+
+        # Bokeh Plot을 위한 기본 변수 설정
+        from bokeh import palettes
+        # self.color_list = ['#ec008e','#0086d4', '#361b6f',  '#8c98a0'] + list(palettes.Category20_20)
+        self.color_list = ['#192036','#eaa88f', '#8c98a0'] + list(palettes.Category20_20)
+        self.outputname = outputname
+
+
+if __name__ == "__main__":
+    from tqdm import tqdm
+    BM_w_df, Port_w_df = pd.read_excel(f'ETF_test.xlsx', sheet_name='BM_pvt',index_col=0,parse_dates=[0]), pd.read_excel(f'ETF_test.xlsx', sheet_name='MyPort_pvt', index_col=0, parse_dates=[0])
+    price_df = pd.DataFrame()
+    for stock in tqdm(BM_w_df.columns.to_list() + Port_w_df.columns.to_list()):
+        tmp = gdu.get_data.get_naver_close(stock[1:]).rename(columns=lambda x: stock)
+        price_df = pd.concat([price_df, tmp], axis=1)
+    gdu.data = price_df.copy()
+    gdu.data.columns
+    BM_w_df.columns
+    pass
