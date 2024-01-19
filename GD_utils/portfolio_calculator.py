@@ -986,12 +986,11 @@ class PortfolioAnalysis:
         return Rolling_HPR_1Y, Rolling_HPR_1Y_WR
 
 class PortfolioAnalysis_v2:
-    def __init__(self, BM_w_df, Port_w_df, outputname='./Unnamed'):
+    def __init__(self, BM_w_df, Port_w_df, BM_nm='BM', Port_nm='My Portfolio', outputname='./Unnamed'):
 
-        BM_p_df = gdu.calc_return(BM_w_df, cost=0, n_days_after=2)
-        Port_p_df = gdu.calc_return(Port_w_df.div(100), cost=0, n_days_after=2)
-        from return_calculator import return_calculator
-        self=return_calculator(BM_w_df)
+        BM_p_df = gdu.calc_return(BM_w_df, cost=0, n_days_after=2).rename(BM_nm)
+        Port_p_df = gdu.calc_return(Port_w_df.div(100), cost=0, n_days_after=2).rename('Port_nm')
+        daily_return = pd.concat([BM_p_df, Port_p_df])
 
 
         # 포트폴리오 일별 수익률

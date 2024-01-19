@@ -323,9 +323,10 @@ class return_calculator_v2:
         self._rb_tr_ratio = self._rb_tr_ratio_stockwise.sum(1) # 실제 리밸런싱 날짜의 회전율
 
         # 수익률 기여도
-        self.daily_ret_cntrbtn = gr_rtn.apply(self.calc_bt_compound_return).droplevel(0).loc[self.s_dts]
+        self.daily_ret_cntrbtn_tmp = gr_rtn.apply(self.calc_bt_compound_return).droplevel(0)
+        self.daily_ret_cntrbtn = self.daily_ret_cntrbtn_tmp.loc[self.s_dts]
         # back-test daily return
-        self.backtest_daily_return = self.daily_ret_cntrbtn.sum(1)
+        self.backtest_daily_return = self.daily_ret_cntrbtn_tmp.sum(1)
         # back-test daily cumulative return
         self.backtest_cumulative_return = self.backtest_daily_return.add(1).cumprod()
 
