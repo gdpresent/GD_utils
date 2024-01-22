@@ -282,7 +282,7 @@ class return_calculator_Faster:
         return abs(rb_ratio_diff)
 
 
-# 2024-01-18 디버그 완료
+# 2024-01-22 디버그 완료
 class return_calculator_v2:
     def __init__(self, ratio_df, cost=0.00, n_day_after=0):
         """
@@ -319,16 +319,20 @@ class return_calculator_v2:
 
         # 회전율 관련
         _daily_ratio = gr_rtn.apply(self.calc_bt_daily_ratio) # 실제 일별 내 계좌 잔고의 종목별 비중[%]
-        self._rb_tr_ratio_stockwise = abs(self.calc_rb_turnover(_daily_ratio)) # 실제 리밸런싱 날짜의 종목별 회전율
-        self._rb_tr_ratio = self._rb_tr_ratio_stockwise.sum(1) # 실제 리밸런싱 날짜의 회전율
+        self.stockwise_turnover_ratio = abs(self.calc_rb_turnover(_daily_ratio)) # 실제 리밸런싱 날짜의 종목별 회전율
+        self.portfolio_turnover_ratio = self.stockwise_turnover_ratio.sum(1) # 실제 리밸런싱 날짜의 회전율
 
-        # 수익률 기여도
-        self.daily_ret_cntrbtn_tmp = gr_rtn.apply(self.calc_bt_compound_return).droplevel(0)
-        self.daily_ret_cntrbtn = self.daily_ret_cntrbtn_tmp.loc[self.s_dts]
-        # back-test daily return
-        self.backtest_daily_return = self.daily_ret_cntrbtn_tmp.sum(1)
-        # back-test daily cumulative return
-        self.backtest_cumulative_return = self.backtest_daily_return.add(1).cumprod()
+        # 수익률 기여도 & 포트폴리오 수익률
+        daily_cntrbtn_port_concated = [self.calc_ret_cntrbtn_and_port_ret(group) for _, group in gr_rtn]
+        # 종목별 일자별 수익률기여도
+        self.stockwise_daily_return_contribution = pd.concat([daily_cntrbtn_tmp[0] for daily_cntrbtn_tmp in daily_cntrbtn_port_concated], axis=0).sort_index()
+        # 리밸런싱별 종목별 수익률기여도
+        self.stockwise_period_return_contribution = self.stockwise_daily_return_contribution.loc[self.s_dts]
+
+
+        self.portfolio_daily_return = pd.concat([daily_ret_port[1] for daily_ret_port in daily_cntrbtn_port_concated],axis=0).sort_index()
+        self.portfolio_cumulative_return = self.portfolio_daily_return.add(1).cumprod()
+
 
     def get_nday_delay(self, rb_dts, n=0):
         _rb_dts_1d_dly = []
@@ -367,26 +371,28 @@ class return_calculator_v2:
         df=df.dropna(subset='gr_idx', axis=0)
         # df['gr_idx'] = df['gr_idx'].fillna(method='ffill')
         return df.groupby('gr_idx')
-    def calc_compound_return(self, grouped_price):
-        return grouped_price.drop('gr_idx', axis=1).pct_change().fillna(0).add(1).cumprod().sub(1)
-    def calc_bt_compound_return(self, grouped_return):
-        # grouped_return = gr_rtn.get_group([x for x in gr_rtn.groups.keys()][-1])
+    def calc_ret_cntrbtn_and_port_ret(self, grouped_return):
+        # grouped_return = gr_rtn.get_group([x for x in gr_rtn.groups.keys()][0])
         gr_comp_rtn = grouped_return.set_index('gr_idx').fillna(0).add(1).cumprod().sub(1) # input된 것은 일별수익률임 따라서 복리수익률을 만들어 준 이후,
         daily_comp_rtn = gr_comp_rtn.mul(self.ratio_df_buydate.loc[gr_comp_rtn.index[0]]).dropna(axis=1, how='all')  # "복리수익률" * "리밸런싱때 조정한 비중" = 포트폴리오 종목별 일별 (누적)복리수익률
         daily_comp_rtn.index = grouped_return.index
 
         # stock-wise decomposing
         first_line = daily_comp_rtn.iloc[0] # pct_change를 할 때 첫 줄이 날아가기 때문에 남겨놓아야 하는 첫 번째날 수익률(리밸런싱 하루 이후 포트폴리오 종목별 수익률 backup)
-        daily_comp_rtn = daily_comp_rtn.add(1).pct_change() # 포트폴리오 종목별 일별 수익률
-        daily_comp_rtn.iloc[0] = first_line
+        daily_rtn = daily_comp_rtn.add(1).pct_change() # 포트폴리오 종목별 일별 수익률
+        daily_rtn.iloc[0] = first_line
 
-        rb_d = daily_comp_rtn.index[0]
-        tr_applied_here = self._rb_tr_ratio_stockwise.loc[rb_d].dropna() # 회전율은 하루 전으로 날짜가 잡혀있고, 여기 계산된 수익률은 하루 뒤로 밀려있음(수익률이기 때문에) / 날짜를 맞춰주기 위한 조작
+        rb_d = daily_rtn.index[0]
+        tr_applied_here = self.stockwise_turnover_ratio.loc[rb_d].dropna() # 회전율은 하루 전으로 날짜가 잡혀있고, 여기 계산된 수익률은 하루 뒤로 밀려있음(수익률이기 때문에) / 날짜를 맞춰주기 위한 조작
 
         # apply trading cost0
         daily_comp_rtn.loc[rb_d] = daily_comp_rtn.loc[rb_d] - self._cost * tr_applied_here
-        # output = daily_comp_rtn.sum(1)
-        return daily_comp_rtn
+
+        daily_port_rtn = daily_comp_rtn.sum(1).add(1).pct_change()
+        daily_port_rtn.loc[rb_d] = daily_comp_rtn.sum(1).loc[rb_d]
+        # daily_port_rtn.add(1).cumprod()
+
+        return [daily_comp_rtn, daily_port_rtn]
     def calc_bt_daily_ratio(self, grouped_return):
         # grouped_return = gr_rtn.get_group([x for x in gr_rtn.groups.keys()][0])
         gr_rtn_ = grouped_return.set_index('gr_idx').dropna(how='all', axis=1).add(1).cumprod()
