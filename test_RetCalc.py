@@ -13,7 +13,7 @@ if __name__ == "__main__":
         test_df_day = pickle.load(l)
     gdu.data = test_df_day.pivot(index='date', columns='종목코드', values='수정주가')
     gdu.data['CASH']=1
-    self=gdu.return_calculator_v2(ratio_df=w_df, cost=0.0)
     start = time.time()  # 시작 시간 저장
-    print(gdu.return_calculator_v2(ratio_df=w_df, cost=0.0, n_day_after=0).portfolio_cumulative_return)
-    print(f"데이터 처리1: {round((time.time() - start), 2)}초 소요")
+    self=gdu.return_calculator_v2(ratio_df=w_df, cost=0.0)
+    print(self.portfolio_cumulative_return)
+    print(f"데이터 처리: {round((time.time() - start), 2)}초 소요")

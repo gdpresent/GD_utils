@@ -5,7 +5,7 @@ from GD_utils.factor_calculator import FactorAnalysis
 
 # 예제 데이터 호출
 test_df = pd.read_pickle("./test_df_top_all_sector.pickle")
-test_df_day = pd.read_pickle("./test_df_sector_day.pickle").pivot(index='date', columns='종목코드', values='수정주가')
+test_df_day = pd.read_pickle("./test_df_sector_day.pickle")#.pivot(index='date', columns='종목코드', values='수정주가')
 
 # 사용되는 BM
 BM = gdu.get_data.get_naver_close("KOSPI")
