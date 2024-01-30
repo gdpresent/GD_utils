@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 import numpy as np
 import GD_utils as gdu
@@ -443,7 +445,7 @@ class retcnt_calculator:
         self.daily_account_ratio = gr_rtn.apply(self.calc_bt_daily_ratio).droplevel(0) # 실제 일별 내 계좌 잔고의 종목별 비중[%]
         self.daily_account_ratio.loc[self.ratio_df.index[0]] = self.ratio_df.iloc[0] # 첫날 비중은 그대로
         self.daily_account_ratio= self.daily_account_ratio.sort_index()
-        self.stockwise_turnover_ratio = self.calc_rb_turnover(self.daily_account_ratio) # 실제 리밸런싱 날짜의 종목별 회전율
+        self.rebal_account_ratio, self.before_account_ratio,self.stockwise_turnover_ratio = self.calc_rb_turnover(self.daily_account_ratio) # 실제 리밸런싱 날짜의 종목별 회전율
         self.portfolio_turnover_ratio = abs(self.stockwise_turnover_ratio).sum(1).div(2) # 실제 리밸런싱 날짜의 회전율
 
         # 수익률 기여도 & 포트폴리오 수익률
@@ -536,8 +538,10 @@ class retcnt_calculator:
         s_dt_account_ratio = s_dt_account_ratio.sort_index()
         s_dt_account_ratio.index = b_dt_ratio_target.index
 
+        before_account_ratio=s_dt_account_ratio.copy()
+        rebal_account_ratio=b_dt_ratio_target.copy()
         rb_ratio_diff = b_dt_ratio_target.sub(s_dt_account_ratio, fill_value=0)
-        return rb_ratio_diff
+        return rebal_account_ratio, before_account_ratio, rb_ratio_diff
 class BrinsonFachler_calculator(retcnt_calculator):
     def __init__(self, P_w_pvt_input,B_w_pvt_input,Asset_info_input, cost=0.00, n_day_after=0):
         """
@@ -643,8 +647,8 @@ class BrinsonFachler_calculator(retcnt_calculator):
         cr_pvt_ = self.period_ExPost[w_pvt_.notna()].fillna(0).mul(nw_pvt_, fill_value=1).rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
         cw_pvt_ = w_pvt_.rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
         return cw_pvt_,cr_pvt_
-class TAA_calculator(retcnt_calculator):
-    def __init__(self, P_w_pvt_input,B_w_pvt_input,Asset_info_input, cost=0.00, n_day_after=0):
+class Modified_BrinsonFachler_calculator(retcnt_calculator):
+    def __init__(self, P_w_pvt_input,B_w_pvt_input,Asset_info_input,Index_Daily_price_input, cost=0.00, n_day_after=0):
         """
         Asset_info: pandas Series
         index = 종목코드
@@ -652,11 +656,10 @@ class TAA_calculator(retcnt_calculator):
         """
         all_list = list(set(P_w_pvt_input.columns)|set(B_w_pvt_input.columns))
 
-
-
         # 시계열로 변하는 class를 고려하지 않음
         # 혹시라도 섹터가 구분되지 않는 종목이 섞여들어왔을 때
         self.Asset_info = Asset_info_input.copy()
+        self.Index_Daily_price_input = Index_Daily_price_input.copy()
         ambigous_list = list(set(all_list)-set(self.Asset_info.index))
         if len(ambigous_list)>0:
             print(f'class가 구분되지 않는 종목 {len(ambigous_list)}개')
@@ -685,34 +688,15 @@ class TAA_calculator(retcnt_calculator):
             print(f'수시리밸런싱이 {len(irre_rebal_date)}회 있습니다: {list(irre_rebal_date)}')
             irre_rebal_B_w_tmp = retcnt_calculator(ratio_df=B_w_pvt).daily_account_ratio
             B_w_pvt = pd.concat([B_w_pvt, irre_rebal_B_w_tmp.loc[irre_rebal_date]], axis=0).sort_index()
-
-        rP = P_w_pvt.mul(self.period_ExPost).sum(1)
-        rB = B_w_pvt.mul(self.period_ExPost).sum(1)
-        ######################## class별 변환
-        P_cw_pvt, P_cr_pvt = self.convert_pvt_wrt_class(P_w_pvt)
-        self.P_classweight_pvt = P_cw_pvt.copy()
-        B_cw_pvt, B_cr_pvt = self.convert_pvt_wrt_class(B_w_pvt)
-
-        # Allocation Effect
-        wPj_minus_wBj = P_cw_pvt.sub(B_cw_pvt, fill_value=0)#.rename(columns=Asset_info_input.to_dict()).stack().groupby(level=[0,1]).sum().unstack()
-        rBj_minus_rB = B_cr_pvt.sub(rB, axis=0)
-        allocation_effect_tmp = wPj_minus_wBj.mul(rBj_minus_rB, fill_value=0).sum(1)
-
-        # Selection Effect
-        rPj_minus_rBj = P_cr_pvt.sub(B_cr_pvt, fill_value=0)
-        selection_effect_tmp = rPj_minus_rBj.mul(B_cw_pvt,fill_value=0).sum(1)
-
-        # Inter-action Effect
-        interaction_effect_tmp = wPj_minus_wBj.mul(rPj_minus_rBj,fill_value=0).sum(1)
-
-        self.allocation_effect = allocation_effect_tmp.shift(1)
-        self.selection_effect = selection_effect_tmp.shift(1)
-        self.interaction_effect = interaction_effect_tmp.shift(1)
-        self.rB = rB.shift(1)
-        self.rP = rP.shift(1)
-
         self.Bench_cls = retcnt_calculator(ratio_df=B_w_pvt, cost=cost, n_day_after=n_day_after)
         self.Port_cls = retcnt_calculator(ratio_df=P_w_pvt, cost=cost, n_day_after=n_day_after)
+
+        self.allocation_effect, self.selection_effect, self.interaction_effect, self.rP, self.rB, self.P_classweight_pvt = self.get_AA_effects(P_w_pvt, B_w_pvt)
+
+        LATEST_Rebal = P_w_pvt.copy()
+        IF_None_Rebal=self.Port_cls.before_account_ratio.copy()
+        IF_None_Rebal.index=LATEST_Rebal.index
+        self.Rebalancing_in_eff, self.Rebalancing_out_eff, self.rP_NonReb, self.rB_NonReb=self.get_Rebalancing_effects(LATEST_Rebal,IF_None_Rebal)
 
         # 확인
         # print('rP.sub(rB)',rP.sub(rB))
@@ -748,16 +732,207 @@ class TAA_calculator(retcnt_calculator):
         cr_pvt_ = self.period_ExPost[w_pvt_.notna()].fillna(0).mul(nw_pvt_, fill_value=1).rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
         cw_pvt_ = w_pvt_.rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
         return cw_pvt_,cr_pvt_
+    def get_AA_effects(self, P_w_pvt_, B_w_pvt_):
+        # P_w_pvt_, B_w_pvt_ = LATEST_Rebal.copy(), IF_None_Rebal.copy()
+        rP_ = P_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+        rB_ = B_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+        ######################## class별 변환
+        P_cw_pvt_, P_cr_pvt_ = self.convert_pvt_wrt_class(P_w_pvt_)
+        P_classweight_pvt = P_cw_pvt_.copy()
+        B_cw_pvt_, B_cr_pvt_ = self.convert_pvt_wrt_class(B_w_pvt_)
+        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index, P_cr_pvt_.columns].pct_change(fill_method=None).shift(-1)
 
+        # Allocation Effect
+        wPj_minus_wBj_ = P_cw_pvt_.sub(B_cw_pvt_,
+                                       fill_value=0)  # .rename(columns=Asset_info_input.to_dict()).stack().groupby(level=[0,1]).sum().unstack()
+        rBj_minus_rB_ = B_cr_pvt_.sub(rB_, axis=0)
+        allocation_effect_tmp_ = wPj_minus_wBj_.mul(rBj_minus_rB_, fill_value=0).sum(1)
+
+        # Selection Effect
+        rPj_minus_rIj_ = P_cr_pvt_.sub(I_cr_pvt_, fill_value=0)
+        selection_effect_tmp_ = rPj_minus_rIj_.mul(B_cw_pvt_, fill_value=0).sum(1)
+
+        # Inter-action Effect
+        rPj_minus_rBj_ = P_cr_pvt_.sub(B_cr_pvt_, fill_value=0)
+        interaction_effect_tmp_ = P_cw_pvt_.mul(rPj_minus_rBj_, fill_value=0).sub(
+            B_cw_pvt_.mul(rPj_minus_rIj_, fill_value=0), fill_value=0).sum(1)
+
+        allocation_effect = allocation_effect_tmp_.shift(1)
+        selection_effect = selection_effect_tmp_.shift(1)
+        interaction_effect = interaction_effect_tmp_.shift(1)
+        rB = rB_.shift(1)
+        rP = rP_.shift(1)
+        return allocation_effect, selection_effect, interaction_effect, rP, rB, P_classweight_pvt
+    def get_Rebalancing_effects(self, P_w_pvt_, B_w_pvt_):
+        # P_w_pvt_, B_w_pvt_ = LATEST_Rebal.copy(), IF_None_Rebal.copy()
+        rP_ = P_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+        rB_ = B_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+
+        Port_change = P_w_pvt_.sub(B_w_pvt_, fill_value=0)
+        Port_in = Port_change[Port_change>0]
+        Port_out = Port_change[Port_change<0]
+
+        Port_in_eff = Port_in.mul(self.period_ExPost).sum(1)
+        Port_out_eff = Port_out.mul(self.period_ExPost).sum(1)
+        # Port_in_eff.add(Port_out_eff)
+        # rP_.sub(rB_)
+        return Port_in_eff, Port_out_eff, rP_, rB_
+class BrinsonHoodBeebower_calculator(retcnt_calculator):
+    def __init__(self, P_w_pvt_input,B_w_pvt_input,Asset_info_input,Index_Daily_price_input, cost=0.00, n_day_after=0):
+        """
+        Asset_info: pandas Series
+        index = 종목코드
+        value = class
+        """
+        all_list = list(set(P_w_pvt_input.columns))
+
+
+        self.Asset_info = Asset_info_input.copy()
+        # 시계열로 변하는 class를 고려하지 않음
+        # 혹시라도 섹터가 구분되지 않는 종목이 섞여들어왔을 때
+        self.Index_Daily_price_input = Index_Daily_price_input.copy()
+        ambigous_list = list(set(all_list)-set(self.Asset_info.index))
+        if len(ambigous_list)>0:
+            print(f'class가 구분되지 않는 종목 {len(ambigous_list)}개')
+            for cd in ambigous_list:
+                self.Asset_info[cd] = 'unknown'
+
+
+        price_df = gdu.data.copy()
+
+        self.b_dts = self.get_nday_delay(P_w_pvt_input.index, n_day_after+1) # 수익률로 계산하기 때문에 더하기 1 필요
+        self.s_dts = self.get_nday_delay(P_w_pvt_input.index, n_day_after)[1:]
+        self.ratio_df_buydate = P_w_pvt_input.copy()
+        self.ratio_df_buydate.index = self.b_dts
+        self.ratio_df_selldate = P_w_pvt_input.iloc[1:]
+
+        _rnt_dt = price_df.pct_change(fill_method=None)
+        gr_rtn = self.get_df_grouped(_rnt_dt)
+        self.period_ExPost = gr_rtn.apply(lambda x: x.add(1).prod()-1)
+        self.period_ExPost.index = P_w_pvt_input.index
+
+        # 설정 확인
+        P_w_pvt = P_w_pvt_input.rename_axis('date', axis=0).rename_axis('code', axis=1)
+        B_w_pvt = B_w_pvt_input.rename_axis('date', axis=0).rename_axis('code', axis=1)
+        # Portfolio는 BM 가만히 있을 때, 수시리밸런싱을 했을 수도 있으니까
+        irre_rebal_date = P_w_pvt.index[~P_w_pvt.index.isin(B_w_pvt.index)]
+        if len(irre_rebal_date) != 0:
+            print(f'수시리밸런싱이 {len(irre_rebal_date)}회 있습니다: {list(irre_rebal_date)}')
+            irre_rebal_B_w_tmp = retcnt_calculator(ratio_df=B_w_pvt).daily_account_ratio
+            B_w_pvt = pd.concat([B_w_pvt, irre_rebal_B_w_tmp.loc[irre_rebal_date]], axis=0).sort_index()
+        self.Bench_cls = retcnt_calculator(ratio_df=B_w_pvt, cost=cost, n_day_after=n_day_after)
+        self.Port_cls = retcnt_calculator(ratio_df=P_w_pvt, cost=cost, n_day_after=n_day_after)
+
+        self.allocation_effect, self.selection_effect, self.rP, self.rB, self.P_classweight_pvt = self.get_AA_effects(P_w_pvt, B_w_pvt)
+
+        LATEST_Rebal = P_w_pvt.copy()
+        IF_None_Rebal=self.Port_cls.before_account_ratio.copy()
+        IF_None_Rebal.index=LATEST_Rebal.index
+        self.Rebalancing_in_eff, self.Rebalancing_out_eff, self.rP_NonReb, self.rB_NonReb=self.get_Rebalancing_effects(LATEST_Rebal,IF_None_Rebal)
+
+        # 확인
+        # print('rP.sub(rB)',rP.sub(rB))
+        # print('SUMMATION',allocation_effect_tmp.add(selection_effect_tmp).add(interaction_effect_tmp))
+        # self.rP.sub(self.rB).add(1).cumprod()
+        # self.allocation_effect.add(self.selection_effect).add(self.interaction_effect).add(1).cumprod()
+        # return_calculator(B_w_pvt,cost=0, n_day_after=n_day_after).portfolio_cumulative_return.loc[:self.rB.index[-1]]
+        # self.rB.add(1).cumprod()
+
+
+        """
+        # BHB(1986)와 DGTW(1997)를 기반
+        TR = P_w_pvt.mul(period_ExPost).sum(1)
+        SAA = B_w_pvt.mul(period_ExPost).sum(1)
+        TAA = P_cw_pvt.sub(B_cw_pvt, fill_value=0).mul(B_cr_pvt).sum(1)
+        AS = P_cw_pvt.mul(P_cr_pvt.sub(B_cr_pvt)).sum(1)
+        TR
+        SAA.add(TAA).add(AS)
+        """
+    def get_normed_pvt(self,_w_pvt, Ass_inf):
+        # _w_pvt, Ass_inf = B_w_pvt.copy(), self.Asset_info.copy()
+        # Asset_info_input DataFrame을 사용하여 P_w_pvt의 각 컬럼에 대한 클래스를 찾음
+        class_for_columns = Ass_inf.loc[_w_pvt.columns].values.flatten()
+        # 같은 클래스에 속하는 컬럼들의 합을 계산
+        # cls=class_for_columns[0]
+        class_sums = {cls: _w_pvt.loc[:, class_for_columns == cls].sum(axis=1) for cls in set(class_for_columns)}
+        # P_w_pvt의 각 컬럼을 해당 클래스의 합으로 나눔
+        P_w_pvt_normalized = _w_pvt.apply(lambda col: col / class_sums[class_for_columns[_w_pvt.columns.get_loc(col.name)]])
+        return P_w_pvt_normalized
+    def convert_pvt_wrt_class(self, w_pvt_, convert=True):
+        # w_pvt_ = B_w_pvt.copy()
+        if convert:
+            nw_pvt_ = self.get_normed_pvt(w_pvt_, self.Asset_info)
+        else:
+            nw_pvt_ = w_pvt_.copy()
+        cr_pvt_ = self.period_ExPost[w_pvt_.notna()].fillna(0).mul(nw_pvt_, fill_value=1).rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
+        cw_pvt_ = w_pvt_.rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
+        return cw_pvt_,cr_pvt_
+    def get_AA_effects(self, P_w_pvt_, B_w_pvt_):
+        # P_w_pvt_, B_w_pvt_ = P_w_pvt.copy(), B_w_pvt.copy()
+        rP_ = P_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+        rB_ = B_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+
+
+        ######################## class별 변환
+        P_cw_pvt_, P_cr_pvt_ = self.convert_pvt_wrt_class(P_w_pvt_)
+        P_classweight_pvt = P_cw_pvt_.copy()
+        B_cw_pvt_, B_cr_pvt_ = self.convert_pvt_wrt_class(B_w_pvt_, convert=False)
+        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index].pct_change(fill_method=None).shift(-1)
+
+        # Allocation Effect
+        wPj_minus_wBj_ = P_cw_pvt_.sub(B_cw_pvt_, fill_value=0)  # .rename(columns=Asset_info_input.to_dict()).stack().groupby(level=[0,1]).sum().unstack()
+        allocation_effect_tmp_ = wPj_minus_wBj_.mul(I_cr_pvt_, fill_value=0).sum(1)
+
+        # Selection Effect
+        rPj_minus_rIj_ = P_cr_pvt_.sub(I_cr_pvt_, fill_value=0)
+        selection_effect_tmp_ = rPj_minus_rIj_.mul(P_cw_pvt_, fill_value=0).sum(1)
+
+        allocation_effect = allocation_effect_tmp_.shift(1)
+        selection_effect = selection_effect_tmp_.shift(1)
+        rB = rB_.shift(1)
+        rP = rP_.shift(1)
+        # 확인
+        # allocation_effect.add(selection_effect)
+        # rP.sub(rB)
+        return allocation_effect, selection_effect, rP, rB, P_classweight_pvt
+    def get_Rebalancing_effects(self, P_w_pvt_, B_w_pvt_):
+        # P_w_pvt_, B_w_pvt_ = LATEST_Rebal.copy(), IF_None_Rebal.copy()
+        rP_ = P_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+        rB_ = B_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
+
+        Port_change = P_w_pvt_.sub(B_w_pvt_, fill_value=0)
+        Port_in = Port_change[Port_change>0]
+        Port_out = Port_change[Port_change<0]
+
+        Port_in_eff = Port_in.mul(self.period_ExPost).sum(1)
+        Port_out_eff = Port_out.mul(self.period_ExPost).sum(1)
+        # Port_in_eff.add(Port_out_eff)
+        # rP_.sub(rB_)
+        return Port_in_eff, Port_out_eff, rP_, rB_
 
 if __name__ == "__main__":
     from tqdm import tqdm
     B_w_pvt_input, P_w_pvt_input = pd.read_excel(f'ETF_test.xlsx', sheet_name='BM_pvt',index_col=0,parse_dates=[0]), pd.read_excel(f'ETF_test.xlsx', sheet_name='MyPort_pvt', index_col=0, parse_dates=[0])
     price_df = pd.DataFrame()
-    for stock in tqdm(B_w_pvt_input.columns.to_list() + P_w_pvt_input.columns.to_list()):
-        tmp = gdu.get_data.get_naver_close(stock[1:]).rename(columns=lambda x: stock)
-        price_df = pd.concat([price_df, tmp], axis=1)
-    price_df = price_df.loc[:"2022-12"]
+
+    datadate = "20240129"
+    from GD_utils.general_utils import save_as_pd_parquet, read_pd_parquet
+
+    if os.path.exists(f'./ETF_price_{datadate}.hd5'):
+        price_df = read_pd_parquet(f'./ETF_price_{datadate}.hd5')
+    else:
+
+        from pykrx import stock
+        ETF_tickers = stock.get_etf_ticker_list(datadate)
+
+        for stock in tqdm(ETF_tickers):
+            tmp = gdu.get_data.get_naver_close(stock).rename(columns=lambda x: "A"+stock)
+            price_df = pd.concat([price_df, tmp], axis=1)
+            time.sleep(0.5)
+        price_df = price_df.loc[:"2022-12"]
+        save_as_pd_parquet(f'./ETF_price_{datadate}.hd5', price_df)
+
+
     gdu.data = price_df.copy()
     Asset_info = pd.read_excel(f'./ETF_test.xlsx', sheet_name='표1')[['단축코드', '기초시장분류', '기초자산분류']]
     Asset_info.columns = ['code', 'class1', 'class2']
@@ -765,8 +940,9 @@ if __name__ == "__main__":
     Asset_info['class'] = Asset_info['class1'] + Asset_info['class2']
     Asset_info_input = Asset_info.set_index('code')['class']
 
+    Index_Daily_price_input = price_df.rename_axis('code',axis=1).stack().rename('price').reset_index().merge(Asset_info_input, how='left', on='code').groupby(['class', 'date'])['price'].mean().swaplevel().unstack().dropna(how='all', axis=0).dropna(how='all', axis=1)
 
-    self=BrinsonFachler_calculator(P_w_pvt_input,B_w_pvt_input,Asset_info_input=Asset_info_input, cost=0.00, n_day_after=0)
+    self=Modified_BrinsonFachler_calculator(P_w_pvt_input,B_w_pvt_input,Asset_info_input=Asset_info_input,Index_Daily_price_input=Index_Daily_price_input, cost=0.00, n_day_after=0)
 
 
 
