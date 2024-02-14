@@ -2291,9 +2291,10 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         self.code_to_name = Asset_info_input.set_index('종목코드')[['종목명','class']]
 
         Asset_info_input = Asset_info_input.set_index('종목코드')['class']
+        # P_w_pvt_input,B_w_pvt_input=Lrisk_w_pvt_input.div(100).copy(), LB_w_pvt_input.copy()
         BF_clac = BrinsonHoodBeebower_calculator(P_w_pvt_input,B_w_pvt_input,Asset_info_input, Index_Daily_price_input, cost, n_day_after)
-        Port_p_df = BF_clac.Port_cls.portfolio_cumulative_return.loc[:P_w_pvt_input.index.max()]
-        BM_p_df = BF_clac.Bench_cls.portfolio_cumulative_return.loc[:P_w_pvt_input.index.max()]
+        Port_p_df = BF_clac.Port_cls.portfolio_cumulative_return#.loc[:P_w_pvt_input.index.max()]
+        BM_p_df = BF_clac.Bench_cls.portfolio_cumulative_return#.loc[:P_w_pvt_input.index.max()]
 
         self.allocation_effect = BF_clac.allocation_effect
         self.selection_effect = BF_clac.selection_effect
@@ -2317,7 +2318,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         self.second_latest_rebal_date, self.latest_rebal_date=BF_clac.Port_cls.ratio_df.index[-2],BF_clac.Port_cls.ratio_df.index[-1]
         latest_return_contribution=self.Port_stockwise_period_return_contribution.loc[self.latest_rebal_date].dropna().rename('return contribution')
         self.Port_latest_rebalancing=pd.concat([self.Port_latest_rebalancing, pd.DataFrame(self.code_to_name).loc[self.Port_latest_rebalancing.index], latest_return_contribution], axis=1)
-        self.Port_latest_rebalancing['delta'] = self.Port_latest_rebalancing['today'].sub(self.Port_latest_rebalancing['previous'])
+        self.Port_latest_rebalancing['delta'] = self.Port_latest_rebalancing['today'].sub(self.Port_latest_rebalancing['previous'], fill_value=0)
         self.Port_latest_rebalancing = self.Port_latest_rebalancing.sort_values(by=['today','class','종목명'], ascending=[False,True,True])
         self.latest_decompose_allocation_effect_BM_Port = self.decompose_allocation_effect_BM_Port.loc[self.latest_rebal_date]
 
@@ -2456,6 +2457,8 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
         RebalancingEffect_obj = self.RebalancingEffect_obj(toolbar_location, self.yearly)
         latest_rebaleffect_tbl_obj = self.get_latest_rebaleffect_tbl_obj()
+        MTD_rtn_obj = self.get_MTD_rtn_obj(toolbar_location)
+        MTD_rtn_tbl_obj = self.get_MTD_rtn_tbl_obj()
 
         report_title = Div(
             text="""
@@ -2495,74 +2498,112 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                       RebalancingEffect_obj,
                                       latest_rebaleffect_tbl_obj,
                                       row(latest_rebalancing_tbl_obj,latest_rebalancing_donut_obj),
+                                      MTD_rtn_obj,
+                                      MTD_rtn_tbl_obj,
                                       )
                                )
                            )
                     )
             except:
                 show(
-                    row(
-                        column(
+                    column(
+                        report_title,
+                        row(column(
                             Column(data_table_obj),
                             Column(data_alpha_table_obj),
+                            # Column(data_table_obj_3Y),
+                            # Column(data_table_obj_5Y),
                         ),
-                        column(
-                            cmpd_return_TS_obj,
-                            logscale_return_TS_obj,
-                            dd_TS_obj,
-                            Yearly_rtn_obj,
-                            Yearly_alpha_obj,
-                            row(Monthly_rtn_obj, Monthly_alpha_obj),
-                            row(Monthly_rtn_dist_obj, Monthly_alpha_dist_obj),
-                            RllnCAGR_obj,
-                            Rllnstd_obj,
-                            Rllnshrp_obj,
+                            column(
+                                cmpd_return_TS_obj,
+                                logscale_return_TS_obj,
+                                dd_TS_obj, #R1Y_HPR_obj,
+                                row(Yearly_rtn_obj, Yearly_tottr_obj),
+                                row(Yearly_alpha_obj, Yearly_avgtr_obj),
+                                row(Monthly_rtn_obj, Monthly_alpha_obj),
+                                row(Monthly_rtn_dist_obj, Monthly_alpha_dist_obj),
+                                RllnCAGR_obj,
+                                Rllnstd_obj,
+                                Rllnshrp_obj,
+                            ),
+                            column(
+                                BrinsonHoodBeebower_obj,
+                                row(stacked_line_obj, mean_donut_obj),
+                                RebalancingEffect_obj,
+                                latest_rebaleffect_tbl_obj,
+                                row(latest_rebalancing_tbl_obj, latest_rebalancing_donut_obj),
+                                MTD_rtn_obj,
+                                MTD_rtn_tbl_obj,
+                            )
                         )
                     )
                 )
         else:
             try:
                 save(
-                    row(
-                        column(
-                            Column(data_table_obj),
-                            Column(data_alpha_table_obj),
-                            Column(data_table_obj_3Y),
-                            Column(data_table_obj_5Y),
-                        ),
-                        column(
-                            cmpd_return_TS_obj,
-                            logscale_return_TS_obj,
-                            dd_TS_obj, R1Y_HPR_obj,
-                            Yearly_rtn_obj,
-                            Yearly_alpha_obj,
-                            row(Monthly_rtn_obj, Monthly_alpha_obj),
-                            row(Monthly_rtn_dist_obj, Monthly_alpha_dist_obj),
-                            RllnCAGR_obj,
-                            Rllnstd_obj,
-                            Rllnshrp_obj,
-                        )
-                    )
-
+                    column(
+                           report_title,
+                           row(column(
+                                      Column(data_table_obj),
+                                      Column(data_alpha_table_obj),
+                                      Column(data_table_obj_3Y),
+                                      Column(data_table_obj_5Y),
+                                      ),
+                               column(
+                                      cmpd_return_TS_obj,
+                                      logscale_return_TS_obj,
+                                      dd_TS_obj, R1Y_HPR_obj,
+                                      row(Yearly_rtn_obj, Yearly_tottr_obj),
+                                      row(Yearly_alpha_obj, Yearly_avgtr_obj),
+                                      row(Monthly_rtn_obj, Monthly_alpha_obj),
+                                      row(Monthly_rtn_dist_obj, Monthly_alpha_dist_obj),
+                                      RllnCAGR_obj,
+                                      Rllnstd_obj,
+                                      Rllnshrp_obj,
+                                      ),
+                               column(
+                                      BrinsonHoodBeebower_obj,
+                                      row(stacked_line_obj,mean_donut_obj),
+                                      RebalancingEffect_obj,
+                                      latest_rebaleffect_tbl_obj,
+                                      row(latest_rebalancing_tbl_obj,latest_rebalancing_donut_obj),
+                                      MTD_rtn_obj,
+                                      MTD_rtn_tbl_obj,
+                                      )
+                               )
+                           )
                 )
             except:
                 save(
-                    row(
-                        column(
+                    column(
+                        report_title,
+                        row(column(
                             Column(data_table_obj),
                             Column(data_alpha_table_obj),
+                            # Column(data_table_obj_3Y),
+                            # Column(data_table_obj_5Y),
                         ),
-                        column(
-                            cmpd_return_TS_obj,
-                            logscale_return_TS_obj,
-                            dd_TS_obj,
-                            Yearly_rtn_obj,
-                            Yearly_alpha_obj,
-                            row(Monthly_rtn_obj, Monthly_alpha_obj),
-                            row(Monthly_rtn_dist_obj, Monthly_alpha_dist_obj),
-                            RllnCAGR_obj,
-                            Rllnstd_obj,
-                            Rllnshrp_obj,
+                            column(
+                                cmpd_return_TS_obj,
+                                logscale_return_TS_obj,
+                                dd_TS_obj, #R1Y_HPR_obj,
+                                row(Yearly_rtn_obj, Yearly_tottr_obj),
+                                row(Yearly_alpha_obj, Yearly_avgtr_obj),
+                                row(Monthly_rtn_obj, Monthly_alpha_obj),
+                                row(Monthly_rtn_dist_obj, Monthly_alpha_dist_obj),
+                                RllnCAGR_obj,
+                                Rllnstd_obj,
+                                Rllnshrp_obj,
+                            ),
+                            column(
+                                BrinsonHoodBeebower_obj,
+                                row(stacked_line_obj, mean_donut_obj),
+                                RebalancingEffect_obj,
+                                latest_rebaleffect_tbl_obj,
+                                row(latest_rebalancing_tbl_obj, latest_rebalancing_donut_obj),
+                                MTD_rtn_obj,
+                                MTD_rtn_tbl_obj,
+                            )
                         )
                     )
 
@@ -2656,7 +2697,6 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         BF_obj.title.text_font_size = '13pt'
         # BF_obj = figure(x_range=input_Data.index.to_list(), title="Brinson Fachler Analysis", width=1500, height=500, toolbar_location=toolbar_location)
 
-        BF_lgd_list = []
         source_TS = ColumnDataSource(data=input_Data)
 
         # alpha 막대 너비
@@ -2668,6 +2708,8 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         dodge_val = alpha_width/2
 
         # 나머지 막대 그리기
+        BF_lgd_list = []
+
         for i, col in enumerate(input_Data.columns):
             if i == 0:
                 # BF_line = BF_obj.vbar(x='date', top=col, source=source_TS, width=alpha_width, color=cr_list[i], alpha=0.8)
@@ -2954,8 +2996,203 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         # show(layout)
         return layout
 
+    def get_MTD_rtn_obj(self, toolbar_location):
+        # Plot 복리
+        MTD_price=gdu.data[self.Port_latest_rebalancing['today'].dropna().index].loc[self.Port_rebal_date_class.index[-1]:].dropna(how='all', axis=0)
+        MTD_return = MTD_price.pct_change().add(1).cumprod().sub(1)
+        MTD_return.iloc[0]=0
+        source_for_chart = self.to_source(MTD_return)
+        return_TS_obj = figure(x_axis_type='datetime',
+                               title='MTD' + f'({MTD_return.index[0].strftime("%Y-%m-%d")} ~ {MTD_return.index[-1].strftime("%Y-%m-%d")})',
+                               width=1500, height=450, toolbar_location=toolbar_location)
+
+        return_TS_lgd_list = []
+        for i, col in enumerate(MTD_return.columns):
+            return_TS_line = return_TS_obj.line(source=source_for_chart, x=self.cum_ret_cmpd.index.name, y=col, color=self.color_list[i], line_width=2)
+            today_w=self.Port_latest_rebalancing['today'].loc[col]
+            return_TS_lgd_list.append((f'{col}[{self.code_to_name.loc[col,"종목명"]}] - ({int(today_w*10000)/100}%)', [return_TS_line]))
+        return_TS_lgd = Legend(items=return_TS_lgd_list, location='center')
+        return_TS_obj.add_layout(return_TS_lgd, 'right')
+        return_TS_obj.legend.click_policy = "mute"
+        return_TS_obj.yaxis.formatter = NumeralTickFormatter(format='0 %')
+
+        # 마우스 올렸을 때 값 표시
+        if self.hover:
+            # HoverTool 설정을 위한 데이터 필드 목록 생성
+            tooltips = [("Date", "@date{%F}")]
+            tooltips += [(col, f"@{{{col}}}{{0.00%}}") for col in MTD_return.columns]
+
+            hover = HoverTool(
+                tooltips=tooltips,
+                formatters={"@date": "datetime"}
+            )
+            return_TS_obj.add_tools(hover)
+        return return_TS_obj
+    def get_MTD_rtn_tbl_obj(self):
+        MTD_price=gdu.data[self.Port_latest_rebalancing['today'].dropna().index].loc[self.Port_rebal_date_class.index[-1]:].dropna(how='all', axis=0)
+        MTD_return = MTD_price.pct_change().add(1).cumprod().sub(1).iloc[-1]
+        MTD_contribution = MTD_return.mul(self.Port_latest_rebalancing['today'].dropna())
+        MTD_contribution.index = [self.code_to_name.loc[x,'종목명'] for x in MTD_contribution.index]
+
+
+        static_data_tmp = MTD_contribution.copy()
+        static_data_tmp = static_data_tmp.map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
+
+        static_data_tmp[static_data_tmp.isnull()] = ""
+        # static_data_tmp = static_data_tmp.reset_index()
+        # static_data=static_data_tmp[['code', '종목명', 'return contribution','previous', 'today', 'delta','previous_performance']].rename(
+        #                     columns={'code':'종목코드', 'today':'최근리밸런싱', 'previous':'직전리밸런싱', 'delta':'변화', 'return contribution':'수익률 기여도', 'previous_performance':'직전리밸런싱 성과'})
+        static_data=static_data_tmp.rename_axis("").rename('MTD기여도').reset_index()
+        source = ColumnDataSource(static_data)
+
+        # columns = [TableColumn(field=col, title=col) for col in static_data.columns]
+
+        # 폰트 크기를 조정하기 위한 HTML 템플릿 포맷터 생성
+        formatter = HTMLTemplateFormatter(template='<div style="font-size: 16px;"><%= value %></div>')  # 수정됨
+
+        # 각 컬럼에 HTML 템플릿 포맷터 적용
+        columns = [TableColumn(field=col, title=col, formatter=formatter) for col in static_data.columns]  # 수정됨
+
+        data_table_fig = DataTable(source=source, columns=columns, width=int(1500*(1/3)), height=200, index_position=None)
+
+        # 제목을 위한 Div 위젯 생성
+        title_div = Div(text=f"<h2>MTD기여도: {MTD_price.index[0].strftime('%Y-%m-%d')} ~ {MTD_price.index[-1].strftime('%Y-%m-%d')}</h2>", width=1000, height=30)
+
+
+        # Div와 DataTable을 column 레이아웃으로 결합
+        layout = column(title_div, data_table_fig)
+
+        # show(layout)
+        return layout
+
+
 if __name__ == "__main__":
-    # from tqdm import tqdm
+    from tqdm import tqdm
+    Hrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='고위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    Mrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='중위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    Lrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='저위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    HB_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='H_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    MB_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='M_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    LB_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='L_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    HB_w_pvt_input = HB_w_pvt_input[HB_w_pvt_input>0].dropna(how='all', axis=1)
+    MB_w_pvt_input = MB_w_pvt_input[MB_w_pvt_input>0].dropna(how='all', axis=1)
+    LB_w_pvt_input = LB_w_pvt_input[LB_w_pvt_input>0].dropna(how='all', axis=1)
+
+    # Hrisk_w_pvt_input.loc[pd.to_datetime("2024-02-01")] = Hrisk_w_pvt_input.iloc[-1]
+    # Mrisk_w_pvt_input.loc[pd.to_datetime("2024-02-01")] = Mrisk_w_pvt_input.iloc[-1]
+    # Lrisk_w_pvt_input.loc[pd.to_datetime("2024-02-01")] = Lrisk_w_pvt_input.iloc[-1]
+    # HB_w_pvt_input.loc[pd.to_datetime("2024-02-01")] = HB_w_pvt_input.iloc[-1]
+    # MB_w_pvt_input.loc[pd.to_datetime("2024-02-01")] = MB_w_pvt_input.iloc[-1]
+    # LB_w_pvt_input.loc[pd.to_datetime("2024-02-01")] = LB_w_pvt_input.iloc[-1]
+
+
+    BM_code_to_name={'A069500': 'KODEX 200',
+                    'A148070': 'KOSEF 국고채10년',
+                   'A379800': 'KODEX 미국S&P500TR',
+                  'A308620': 'KODEX 미국채10년선물'}
+    # BM_code_to_index={'A069500': '국내주식',
+    #                 'A148070': '국내채권',
+    #                'A379800': '해외주식',
+    #               'A308620': '해외채권'}
+    BM_code_to_index={'KBPMABIN': '국내채권',
+                      "KOSPI Index":'국내주식', 'LEGATRUU Index': '해외채권',
+                      'RUGL Index':'리츠', 'SPGSGC Index':'금',
+                      'NDUEEGF Index':'신흥주식','NDDUWI Index':'선진주식'} # NDUEACWF:해외주식
+
+    index_price = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='Index', index_col=0, parse_dates=[0]).rename(columns=BM_code_to_index)
+    index_price['대안자산'] = index_price[['금','리츠']].pct_change().mean(1).fillna(0).add(1).cumprod()
+    index_price = index_price.pct_change().add(1).cumprod()
+    index_price.iloc[0]=1
+
+    price_df = pd.DataFrame()
+    for stock in tqdm(set(Mrisk_w_pvt_input.columns.to_list())):
+        tmp = gdu.get_data.get_naver_close(stock[1:]).rename(columns=lambda x: stock)
+        price_df = pd.concat([price_df, tmp], axis=1)
+    # price_df.loc[pd.to_datetime("2024-02-01")] = price_df.iloc[-1]
+    # price_df.loc[pd.to_datetime("2024-02-02")] = price_df.iloc[-1]
+    # index_price.loc[pd.to_datetime("2024-02-01")] = index_price.iloc[-1]
+    # index_price.loc[pd.to_datetime("2024-02-02")] = index_price.iloc[-1]
+    Stock_Daily_price_input = price_df.loc[:"2024-02-13"].copy()
+    Index_Daily_price_input = index_price.copy()
+    # Index_Daily_price_input = Stock_Daily_price_input[['A069500','A148070','A379800','A308620']].rename(columns=BM_code_to_index)
+
+
+    Asset_info = pd.read_excel(f'./Shinhan_Robost.xlsx', sheet_name='표1')[['단축코드', '한글종목약명','기초시장분류', '기초자산분류']]
+    Asset_info.columns = ['종목코드', '종목명','class1', 'class2']
+    Asset_info['종목코드'] = Asset_info['종목코드'].astype(str).apply(lambda x: 'A'+'0'*(6-len(x))+x)
+    Asset_info['class'] = Asset_info['class1'] + Asset_info['class2']
+    # Asset_info_input = Asset_info[['종목코드', '종목명','class']]
+    Asset_info_input = Asset_info.set_index('종목코드').loc[list(set(Hrisk_w_pvt_input.columns)|set(Mrisk_w_pvt_input.columns)|set(Lrisk_w_pvt_input.columns))]
+    Asset_info_input.loc['A153130', 'class'] = '국내채권'
+    Asset_info_input.loc['A195920', 'class'] = '선진주식'
+    Asset_info_input.loc['A200250', 'class'] = '신흥주식'
+    Asset_info_input.loc['A272560', 'class'] = '국내채권'
+    Asset_info_input.loc['A273130', 'class'] = '국내채권'
+    Asset_info_input.loc['A329750', 'class'] = '해외채권'
+    Asset_info_input.loc['A411060', 'class'] = '대안자산'
+    Asset_info_input.loc['A437080', 'class'] = '해외채권'
+    Asset_info_input.loc['A452360', 'class'] = '선진주식'
+    Asset_info_input.loc['A455850', 'class'] = '선진주식'
+    Asset_info_input.loc['A329200', 'class'] = '대안자산'
+    Asset_info_input.loc['A302190', 'class'] = '국내채권'
+    Asset_info_input = Asset_info_input.reset_index()[['종목코드', '종목명', 'class']]
+
+
+    self=BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./LL_risk')
+    # self.BrinsonHoodBeebower_report()
+
+    BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./H_risk_20240213').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Mrisk_w_pvt_input.div(100),MB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./M_risk_20240213').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./L_risk_20240213').BrinsonHoodBeebower_report()
+
+
+    # ####################################################################### 섹터 배분 예시
+    # # test_df = pd.read_pickle("./../test_df_top_all_sector.pickle")
+    # # test_df_day = pd.read_pickle("./../test_df_sector_day.pickle")
+    # # test_300df_day = pd.read_pickle("./../test_df_top_300_sector.pickle")
+    # # save_as_pd_parquet("./../test_df_top_all_sector.hd5", test_df)
+    # # save_as_pd_parquet("./../test_df_sector_day.hd5", test_df_day)
+    # # save_as_pd_parquet("./../test_df_top_300_sector.hd5", test_300df_day)
+    # # test_w = pd.read_excel('./../test_w_df_20220404.xlsx', index_col='date', parse_dates=['date'])
+    # test_df = read_pd_parquet("./../test_df_top_all_sector.hd5")
+    # test_df_day = read_pd_parquet("./../test_df_sector_day.hd5")
+    # test_w = read_pd_parquet("./../test_w_20220404.hd5")
+    #
+    # stt_date = "2004-01-01"
+    # test_df=test_df[test_df['date']>=stt_date]
+    # test_df_day=test_df_day[test_df_day['date']>=stt_date]
+    # test_w=test_w.loc[stt_date:]
+    #
+    #
+    #
+    # drop_list = ['A008080', 'A037030', 'A013890', 'A005560', 'A022220', 'A001780','A003260', 'A064520', 'A000030']
+    # test_df_day = test_df_day[~test_df_day['종목코드'].isin(drop_list)]
+    # test_df = test_df[~test_df['종목코드'].isin(drop_list)]
+    # test_df = test_df[~test_df['종목코드'].isin(drop_list)]
+    # daily_cap = test_df_day.pivot(index='date', columns='종목코드', values='시가총액')
+    # daily_cap = daily_cap.loc[daily_cap.index[daily_cap.index.isin(test_w.index)]]
+    # daily_cap300 = daily_cap[daily_cap.rank(ascending=False, axis=1, method='first') <= 300].dropna(how='all', axis=1).dropna(how='all', axis=0)
+    # price_pvt = test_df_day.pivot(index='date', columns='종목코드', values='수정주가').assign(CASH=1)
+    #
+    # Asset_info_tmp = test_df[['종목코드', '종목명', 'sector']].rename(columns={'sector':'class'}).drop_duplicates()
+    # Asset_info_tmp = Asset_info_tmp[~Asset_info_tmp['종목코드'].duplicated()].reset_index(drop='index')
+    # Asset_info_tmp.loc[len(Asset_info_tmp)] = ['CASH', '현금', '무위험자산']
+    # Asset_info_input = Asset_info_tmp.copy()
+    #
+    # # B_w_pvt_input = daily_cap300.div(daily_cap300.sum(axis=1), axis=0)
+    # B_w_pvt_input = read_pd_parquet('./B_w_pvt_input.hd5')
+    # P_w_pvt_input = test_w[test_w>0].dropna(how='all', axis=1).dropna(how='all', axis=0).loc[:B_w_pvt_input.index.max()]
+    #
+    # Stock_Daily_price_input = price_pvt.copy()
+    # Index_Daily_price_input = price_pvt.pct_change().rename_axis('종목코드', axis=1).stack()\
+    #     .rename('return').reset_index().merge(Asset_info_input, how='left', on='종목코드').fillna({'class':'unknown'})\
+    #     .groupby(['class', 'date'])['return'].mean().swaplevel().unstack().add(1).cumprod()\
+    #     .dropna(how='all', axis=0).dropna(how='all', axis=1)
+
+
+
+
+    # 매우 간다
     # B_w_pvt_input, P_w_pvt_input = pd.read_excel(f'ETF_test.xlsx', sheet_name='BM_pvt',index_col=0,parse_dates=[0]), pd.read_excel(f'ETF_test.xlsx', sheet_name='MyPort_pvt', index_col=0, parse_dates=[0])
     # price_df = pd.DataFrame()
     # for stock in tqdm(B_w_pvt_input.columns.to_list() + P_w_pvt_input.columns.to_list()):
@@ -2963,54 +3200,9 @@ if __name__ == "__main__":
     #     price_df = pd.concat([price_df, tmp], axis=1)
     # price_df = price_df.loc[:"2022-12"]
     # gdu.data = price_df.copy()
-
+    #
     # Asset_info = pd.read_excel(f'./ETF_test.xlsx', sheet_name='표1')[['단축코드', '기초시장분류', '기초자산분류']]
     # Asset_info.columns = ['code', 'class1', 'class2']
     # Asset_info['code'] = Asset_info['code'].astype(str).apply(lambda x: 'A'+'0'*(6-len(x))+x)
     # Asset_info['class'] = Asset_info['class1'] + Asset_info['class2']
     # Asset_info_input = Asset_info.set_index('code')['class']
-
-    # test_df = pd.read_pickle("./../test_df_top_all_sector.pickle")
-    # test_df_day = pd.read_pickle("./../test_df_sector_day.pickle")
-    # test_300df_day = pd.read_pickle("./../test_df_top_300_sector.pickle")
-    # save_as_pd_parquet("./../test_df_top_all_sector.hd5", test_df)
-    # save_as_pd_parquet("./../test_df_sector_day.hd5", test_df_day)
-    # save_as_pd_parquet("./../test_df_top_300_sector.hd5", test_300df_day)
-    # test_w = pd.read_excel('./../test_w_df_20220404.xlsx', index_col='date', parse_dates=['date'])
-    test_df = read_pd_parquet("./../test_df_top_all_sector.hd5")
-    test_df_day = read_pd_parquet("./../test_df_sector_day.hd5")
-    test_w = read_pd_parquet("./../test_w_20220404.hd5")
-
-    stt_date = "2004-01-01"
-    test_df=test_df[test_df['date']>=stt_date]
-    test_df_day=test_df_day[test_df_day['date']>=stt_date]
-    test_w=test_w.loc[stt_date:]
-
-
-
-    drop_list = ['A008080', 'A037030', 'A013890', 'A005560', 'A022220', 'A001780','A003260', 'A064520', 'A000030']
-    test_df_day = test_df_day[~test_df_day['종목코드'].isin(drop_list)]
-    test_df = test_df[~test_df['종목코드'].isin(drop_list)]
-    test_df = test_df[~test_df['종목코드'].isin(drop_list)]
-    daily_cap = test_df_day.pivot(index='date', columns='종목코드', values='시가총액')
-    daily_cap = daily_cap.loc[daily_cap.index[daily_cap.index.isin(test_w.index)]]
-    daily_cap300 = daily_cap[daily_cap.rank(ascending=False, axis=1, method='first') <= 300].dropna(how='all', axis=1).dropna(how='all', axis=0)
-    price_pvt = test_df_day.pivot(index='date', columns='종목코드', values='수정주가').assign(CASH=1)
-
-    Asset_info_tmp = test_df[['종목코드', '종목명', 'sector']].rename(columns={'sector':'class'}).drop_duplicates()
-    Asset_info_tmp = Asset_info_tmp[~Asset_info_tmp['종목코드'].duplicated()].reset_index(drop='index')
-    Asset_info_tmp.loc[len(Asset_info_tmp)] = ['CASH', '현금', '무위험자산']
-    Asset_info_input = Asset_info_tmp.copy()
-
-    # B_w_pvt_input = daily_cap300.div(daily_cap300.sum(axis=1), axis=0)
-    B_w_pvt_input = read_pd_parquet('./B_w_pvt_input.hd5')
-    P_w_pvt_input = test_w[test_w>0].dropna(how='all', axis=1).dropna(how='all', axis=0).loc[:B_w_pvt_input.index.max()]
-
-    Stock_Daily_price_input = price_pvt.copy()
-    Index_Daily_price_input = price_pvt.pct_change().rename_axis('종목코드', axis=1).stack()\
-        .rename('return').reset_index().merge(Asset_info_input, how='left', on='종목코드').fillna({'class':'unknown'})\
-        .groupby(['class', 'date'])['return'].mean().swaplevel().unstack().add(1).cumprod()\
-        .dropna(how='all', axis=0).dropna(how='all', axis=1)
-
-    self = BrinsonHoodBeebower_PortfolioAnalysis(P_w_pvt_input,B_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input)
-    self.BrinsonHoodBeebower_report()
