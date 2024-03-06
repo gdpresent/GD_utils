@@ -322,7 +322,7 @@ class return_calculator:
         gr_rtn = self.get_df_grouped(_rnt_dt)
 
         # 회전율 관련
-        self.daily_account_ratio = gr_rtn.apply(self.calc_bt_daily_ratio).droplevel(0) # 실제 일별 내 계좌 잔고의 종목별 비중[%]
+        self.daily_account_ratio = gr_rtn.apply(self.calc_bt_daily_ratio) # 실제 일별 내 계좌 잔고의 종목별 비중[%]
         self.daily_account_ratio.loc[self.ratio_df.index[0]] = self.ratio_df.iloc[0] # 첫날 비중은 그대로
         self.daily_account_ratio= self.daily_account_ratio.sort_index()
         self.stockwise_turnover_ratio = self.calc_rb_turnover(self.daily_account_ratio) # 실제 리밸런싱 날짜의 종목별 회전율
