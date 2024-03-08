@@ -2287,8 +2287,12 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                                                                  ex. KODEX200, ARIRANG200, TIGER200 --> KOSPI
         Index_Daily_price_input: index='(daily)date', columns='(지수)code', values='base-price'
         """
-        gdu.data = pd.concat([Stock_Daily_price_input,Index_Daily_price_input], axis=1)
+        # Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,
+        # yearly=False,outputname='./H_risk_20240221'
+        self.Stock_Daily_price_input, self.Index_Daily_price_input=Stock_Daily_price_input.copy(),Index_Daily_price_input.copy()
+        gdu.data = pd.concat([self.Stock_Daily_price_input,self.Index_Daily_price_input], axis=1)
         self.code_to_name = Asset_info_input.set_index('종목코드')[['종목명','class']]
+        self.P_w_pvt_input, self.B_w_pvt_input = P_w_pvt_input.copy(),B_w_pvt_input.copy()
 
         Asset_info_input = Asset_info_input.set_index('종목코드')['class']
         # P_w_pvt_input,B_w_pvt_input=Lrisk_w_pvt_input.div(100).copy(), LB_w_pvt_input.copy()
@@ -2308,6 +2312,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         self.Port_stockwise_turnover_ratio = BF_clac.Port_cls.stockwise_turnover_ratio
         self.Port_stockwise_period_return_contribution = BF_clac.Port_cls.stockwise_period_return_contribution
         self.Port_daily_account_ratio = BF_clac.Port_cls.daily_account_ratio
+        self.BM_daily_account_ratio = BF_clac.Bench_cls.daily_account_ratio
         self.Port_daily_account_ratio_wrt_class = self.Port_daily_account_ratio.rename(columns=Asset_info_input.to_dict()).stack().groupby(level=[0,1]).sum().unstack()
         self.Port_daily_account_ratio_wrt_class=self.Port_daily_account_ratio_wrt_class[self.Port_daily_account_ratio_wrt_class.mean().sort_values(ascending=False).index].fillna(0)
 
@@ -2320,7 +2325,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         self.Port_latest_rebalancing=pd.concat([self.Port_latest_rebalancing, pd.DataFrame(self.code_to_name).loc[self.Port_latest_rebalancing.index], latest_return_contribution], axis=1)
         self.Port_latest_rebalancing['delta'] = self.Port_latest_rebalancing['today'].sub(self.Port_latest_rebalancing['previous'], fill_value=0)
         self.Port_latest_rebalancing = self.Port_latest_rebalancing.sort_values(by=['today','class','종목명'], ascending=[False,True,True])
-        self.latest_decompose_allocation_effect_BM_Port = self.decompose_allocation_effect_BM_Port.loc[self.latest_rebal_date]
+        self.latest_decompose_allocation_effect_BM_Port = self.decompose_allocation_effect_BM_Port.loc[self.second_latest_rebal_date]
 
         # Rebalancing Effect
         self.decompose_allocation_effect_NonReb = pd.concat([
@@ -2330,7 +2335,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                                       BF_clac.Rebalancing_in_eff.rename('Rebalancing-In Effect'),
                                                       BF_clac.Rebalancing_out_eff.rename('Rebalancing-Out Effect'),
                                                       ], axis=1).dropna(how='all', axis=0)
-        self.latest_decompose_allocation_effect_NonReb = self.decompose_allocation_effect_NonReb.loc[self.latest_rebal_date]
+        self.latest_decompose_allocation_effect_NonReb = self.decompose_allocation_effect_NonReb.loc[self.second_latest_rebal_date]
 
         try:
             self.stacked_line_color = Category20c[len(self.Port_daily_account_ratio_wrt_class.columns)]
@@ -2454,6 +2459,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         BrinsonHoodBeebower_obj = self.BrinsonHoodBeebower_obj(toolbar_location, self.yearly)
         latest_rebalancing_tbl_obj = self.get_latest_rebalancing_tbl_obj()
         latest_rebalancing_donut_obj = self.get_latest_rebalancing_donut_obj(toolbar_location)
+        latest_rebalancing_rtn_obj = self.get_latestrebal_rtn_obj(toolbar_location)
 
         RebalancingEffect_obj = self.RebalancingEffect_obj(toolbar_location, self.yearly)
         latest_rebaleffect_tbl_obj = self.get_latest_rebaleffect_tbl_obj()
@@ -2497,7 +2503,10 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                       row(stacked_line_obj,mean_donut_obj),
                                       RebalancingEffect_obj,
                                       latest_rebaleffect_tbl_obj,
+                                      latest_rebalancing_rtn_obj,
                                       row(latest_rebalancing_tbl_obj,latest_rebalancing_donut_obj),
+                                      ),
+                               column(
                                       MTD_rtn_obj,
                                       MTD_rtn_tbl_obj,
                                       )
@@ -2531,7 +2540,10 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                 row(stacked_line_obj, mean_donut_obj),
                                 RebalancingEffect_obj,
                                 latest_rebaleffect_tbl_obj,
-                                row(latest_rebalancing_tbl_obj, latest_rebalancing_donut_obj),
+                                latest_rebalancing_rtn_obj,
+                                row(latest_rebalancing_tbl_obj, latest_rebalancing_donut_obj)
+                                ),
+                            column(
                                 MTD_rtn_obj,
                                 MTD_rtn_tbl_obj,
                             )
@@ -2566,7 +2578,10 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                       row(stacked_line_obj,mean_donut_obj),
                                       RebalancingEffect_obj,
                                       latest_rebaleffect_tbl_obj,
-                                      row(latest_rebalancing_tbl_obj,latest_rebalancing_donut_obj),
+                                      latest_rebalancing_rtn_obj,
+                                      row(latest_rebalancing_tbl_obj,latest_rebalancing_donut_obj)
+                                      ),
+                               column(
                                       MTD_rtn_obj,
                                       MTD_rtn_tbl_obj,
                                       )
@@ -2600,10 +2615,13 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                 row(stacked_line_obj, mean_donut_obj),
                                 RebalancingEffect_obj,
                                 latest_rebaleffect_tbl_obj,
+                                latest_rebalancing_rtn_obj,
                                 row(latest_rebalancing_tbl_obj, latest_rebalancing_donut_obj),
+                                 ),
+                         column(
                                 MTD_rtn_obj,
                                 MTD_rtn_tbl_obj,
-                            )
+                                )
                         )
                     )
 
@@ -2916,55 +2934,6 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         # show(ClsMean_DN_obj)
 
         return ClsMean_DN_obj
-    def get_latest_rebalancing_tbl_obj(self):
-        static_data_tmp = self.Port_latest_rebalancing.reset_index().fillna(0)
-        contributions = static_data_tmp['return contribution'].values
-        static_data_tmp['today'] = static_data_tmp['today'].map(lambda x: str(np.int64(x*10000)/100)+"%")
-        static_data_tmp['previous'] = static_data_tmp['previous'].map(lambda x: str(int(x*10000)/100)+"%")
-        static_data_tmp['delta'] = static_data_tmp['delta'].map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
-        static_data_tmp.loc['sum']=""
-        static_data_tmp.loc['sum', 'return contribution'] = sum(contributions)
-
-        static_data_tmp['return contribution'] = static_data_tmp['return contribution'].map(lambda x: str(int(x*10000)/100)+"%")
-
-        decomp_df=self.latest_decompose_allocation_effect_BM_Port.loc[['alpha','Port', 'BM', 'Allocation Effect','Selection Effect']]#.rename(index={'Port':self.Port_nm, "BM":self.BM_nm})
-        decomp_df=decomp_df.map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
-        static_data_tmp=pd.concat([static_data_tmp, pd.DataFrame(decomp_df.rename('previous_performance'))], axis=0)
-        static_data_tmp.loc[['alpha','Port', 'BM', 'Allocation Effect','Selection Effect'],'delta'] = ['alpha',self.Port_nm, self.BM_nm, 'Allocation Effect','Selection Effect']
-
-
-        static_data_tmp[static_data_tmp.isnull()] = ""
-        # static_data_tmp = static_data_tmp.reset_index()
-        static_data=static_data_tmp[['code', '종목명', 'return contribution','previous', 'today', 'delta','previous_performance']].rename(
-                            columns={'code':'종목코드',
-                                     'today':'최근리밸런싱',
-                                     'previous':'직전리밸런싱',
-                                     'delta':'변화',
-                                     'return contribution':'수익률 기여도',
-                                     'previous_performance':'직전리밸런싱 성과'
-                                     })
-
-        source = ColumnDataSource(static_data)
-
-        # columns = [TableColumn(field=col, title=col) for col in static_data.columns]
-
-        # 폰트 크기를 조정하기 위한 HTML 템플릿 포맷터 생성
-        formatter = HTMLTemplateFormatter(template='<div style="font-size: 16px;"><%= value %></div>')  # 수정됨
-
-        # 각 컬럼에 HTML 템플릿 포맷터 적용
-        columns = [TableColumn(field=col, title=col, formatter=formatter) for col in static_data.columns]  # 수정됨
-
-        data_table_fig = DataTable(source=source, columns=columns, width=1000, height=750, index_position=None)
-
-        # 제목을 위한 Div 위젯 생성
-        title_div = Div(text=f"<h2>최근 리밸런싱 내역: {self.latest_rebal_date.strftime('%Y-%m-%d')}</h2>", width=1000, height=30)
-
-
-        # Div와 DataTable을 column 레이아웃으로 결합
-        layout = column(title_div, data_table_fig)
-
-        # show(layout)
-        return layout
     def get_latest_rebaleffect_tbl_obj(self):
         static_data_tmp = self.latest_decompose_allocation_effect_NonReb#.reset_index().fillna(0)
         static_data_tmp = static_data_tmp.map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
@@ -2995,8 +2964,91 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
         # show(layout)
         return layout
+    def get_latest_rebalancing_tbl_obj(self):
+        stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-2]:self.B_w_pvt_input.index[-1], self.P_w_pvt_input.iloc[-2].dropna().index]
+        stock_class = self.code_to_name.loc[stock_price.columns]
 
-    def get_MTD_rtn_obj(self, toolbar_location):
+        all_classes = list(set(stock_class['class'].drop_duplicates().to_list() + self.B_w_pvt_input.iloc[-2].dropna().index.to_list()))
+        index_price = self.Index_Daily_price_input.loc[self.B_w_pvt_input.index[-2]:self.B_w_pvt_input.index[-1], all_classes]
+
+        latestrebal_price = pd.concat([stock_price, index_price], axis=1).dropna(how='all', axis=0).dropna(axis=0)
+        MTD_return = latestrebal_price.pct_change().add(1).cumprod().sub(1)
+        MTD_return.iloc[0] = 0
+
+        BM_info = self.B_w_pvt_input.iloc[-2:].T.dropna(axis=0)
+        for idx in stock_class['class'].drop_duplicates():
+            if idx in BM_info.index:
+                continue
+            else:
+                BM_info.loc[idx]=0
+        BM_info.columns = ['previous', 'today']
+        BM_info['종목명']=""
+        BM_info['class']=BM_info.index
+        BM_info['return contribution'] = MTD_return.iloc[-1].mul(BM_info['previous']).dropna()
+        BM_info['change'] = MTD_return.iloc[-1]
+        BM_ret_cntrbtn=sum(BM_info['return contribution'])
+        # BM_info['delta'] = BM_info['today'].sub(BM_info['previous'])
+        BM_info['delta'] = ""
+        BM_info=BM_info.reset_index()
+        BM_info.loc['sumBM']=""
+        BM_info.loc['sumBM', 'return contribution'] = BM_ret_cntrbtn
+        #########################################
+
+        static_data_tmp = self.Port_latest_rebalancing.assign(change=MTD_return.iloc[-1]).reset_index().fillna(0)
+        static_data_tmp['class'] = static_data_tmp['code'].apply(lambda x: self.code_to_name.loc[x, 'class'])
+        contributions = static_data_tmp['return contribution'].values
+        static_data_tmp.loc['sum']=""
+        static_data_tmp.loc['sum', 'return contribution'] = sum(contributions)
+
+        static_data_tmp=pd.concat([static_data_tmp, BM_info], axis=0).reset_index(drop=True)
+        static_data_tmp['today'] = static_data_tmp['today'].map(lambda x: str(np.int64(x*10000)/100)+"%" if type(x)!=str else x)
+        static_data_tmp['previous'] = static_data_tmp['previous'].map(lambda x: str(int(x*10000)/100)+"%" if type(x)!=str else x)
+        static_data_tmp['change'] = static_data_tmp['change'].map(lambda x: str(int(x*10000)/100)+"%" if type(x)!=str else x)
+        static_data_tmp['delta'] = static_data_tmp.loc[static_data_tmp['delta'].apply(lambda x:type(x)!=str),'delta'].map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
+        static_data_tmp['return contribution'] = static_data_tmp['return contribution'].map(lambda x: str(int(x*10000)/100)+"%"if type(x)!=str else x)
+
+        decomp_df=self.latest_decompose_allocation_effect_BM_Port.loc[['alpha','Port', 'BM', 'Allocation Effect','Selection Effect']]#.rename(index={'Port':self.Port_nm, "BM":self.BM_nm})
+        decomp_df=decomp_df.map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
+        static_data_tmp=pd.concat([static_data_tmp, pd.DataFrame(decomp_df.rename('previous_performance'))], axis=0)
+        static_data_tmp.loc[['alpha','Port', 'BM', 'Allocation Effect','Selection Effect'],'delta'] = ['alpha',self.Port_nm, self.BM_nm, 'Allocation Effect','Selection Effect']
+
+
+        static_data_tmp[static_data_tmp.isnull()] = ""
+        # static_data_tmp = static_data_tmp.reset_index()
+        static_data=static_data_tmp[['code', '종목명', 'class', 'return contribution','change','previous', 'today', 'delta','previous_performance']].rename(
+                            columns={'code':'종목코드',
+                                     'class':'자산군',
+                                     'change':'변화율',
+                                     'today':'최근리밸런싱',
+                                     'previous':'직전리밸런싱',
+                                     'delta':'변화',
+                                     'return contribution':'수익률 기여도',
+                                     'previous_performance':'직전리밸런싱 성과'
+                                     })
+
+        source = ColumnDataSource(static_data)
+
+        # columns = [TableColumn(field=col, title=col) for col in static_data.columns]
+
+        # 폰트 크기를 조정하기 위한 HTML 템플릿 포맷터 생성
+        formatter = HTMLTemplateFormatter(template='<div style="font-size: 16px;"><%= value %></div>')  # 수정됨
+
+        # 각 컬럼에 HTML 템플릿 포맷터 적용
+        columns = [TableColumn(field=col, title=col, formatter=formatter) for col in static_data.columns]  # 수정됨
+
+        data_table_fig = DataTable(source=source, columns=columns, width=1000, height=1750, index_position=None)
+
+        # 제목을 위한 Div 위젯 생성
+        title_div = Div(text=f"<h2>최근 리밸런싱 내역: {self.latest_rebal_date.strftime('%Y-%m-%d')}</h2>", width=1000, height=30)
+
+
+        # Div와 DataTable을 column 레이아웃으로 결합
+        layout = column(title_div, data_table_fig)
+
+        # show(layout)
+        return layout
+
+    def get_MTD_rtn_obj_old(self, toolbar_location):
         # Plot 복리
         MTD_price=gdu.data[self.Port_latest_rebalancing['today'].dropna().index].loc[self.Port_rebal_date_class.index[-1]:].dropna(how='all', axis=0)
         MTD_return = MTD_price.pct_change().add(1).cumprod().sub(1)
@@ -3028,21 +3080,185 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
             )
             return_TS_obj.add_tools(hover)
         return return_TS_obj
+    def get_latestrebal_rtn_obj(self, toolbar_location):
+        # Plot 복리
+        stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-2]:self.B_w_pvt_input.index[-1],self.P_w_pvt_input.iloc[-2].dropna().index]
+        stock_class = self.code_to_name.loc[stock_price.columns]
+
+
+        all_classes = list(set(stock_class['class'].drop_duplicates().to_list()+self.B_w_pvt_input.iloc[-2].dropna().index.to_list()))
+        index_price = self.Index_Daily_price_input.loc[self.B_w_pvt_input.index[-2]:self.B_w_pvt_input.index[-1],all_classes]
+
+
+
+        latestrebal_price=pd.concat([stock_price, index_price], axis=1).dropna(how='all', axis=0).dropna(axis=0)
+        MTD_return = latestrebal_price.pct_change().add(1).cumprod().sub(1)
+        MTD_return.iloc[0]=0
+        source_for_chart = self.to_source(MTD_return)
+        return_TS_obj = figure(x_axis_type='datetime',
+                               title='최근 리밸런싱 기간' + f'({MTD_return.index[0].strftime("%Y-%m-%d")} ~ {MTD_return.index[-1].strftime("%Y-%m-%d")})',
+                               width=1500, height=450, toolbar_location=toolbar_location)
+
+        BM_info = self.B_w_pvt_input.iloc[-2].dropna().copy()
+        for idx in stock_class['class'].drop_duplicates():
+            if idx in BM_info.index:
+                continue
+            else:
+                BM_info.loc[idx]=0
+        latest_port_w = pd.concat([self.Port_latest_rebalancing[['previous']].dropna().assign(info='Port'),pd.DataFrame(BM_info.rename('previous')).assign(info='BM')],axis=0)
+        # latest_code_to_name = self.code_to_name.copy()
+
+        return_TS_lgd_list = []
+        for i, col in enumerate(MTD_return.columns):
+            return_TS_line = return_TS_obj.line(source=source_for_chart, x=self.cum_ret_cmpd.index.name, y=col, color=self.color_list[i], line_width=2)
+            today_w=latest_port_w.loc[col]
+            try:
+                stock_name=f"({self.code_to_name.loc[col, 'class']}){self.code_to_name.loc[col, '종목명']}"
+            except:
+                stock_name="BM"
+            return_TS_lgd_list.append((f'{today_w["info"]} - {col}[{stock_name}] - ({int(today_w["previous"]*10000)/100}%)', [return_TS_line]))
+        return_TS_lgd = Legend(items=return_TS_lgd_list, location='center')
+        return_TS_obj.add_layout(return_TS_lgd, 'right')
+        return_TS_obj.legend.click_policy = "hide"
+        return_TS_obj.yaxis.formatter = NumeralTickFormatter(format='0 %')
+
+        # 마우스 올렸을 때 값 표시
+        if self.hover:
+            # HoverTool 설정을 위한 데이터 필드 목록 생성
+            tooltips = [("Date", "@date{%F}")]
+            tooltips += [(col, f"@{{{col}}}{{0.00%}}") for col in MTD_return.columns]
+
+            hover = HoverTool(
+                tooltips=tooltips,
+                formatters={"@date": "datetime"}
+            )
+            return_TS_obj.add_tools(hover)
+        return return_TS_obj
+    def get_MTD_rtn_obj(self, toolbar_location):
+        # Plot 복리
+        stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:,self.P_w_pvt_input.iloc[-1].dropna().index]
+        stock_class = self.code_to_name.loc[stock_price.columns]
+
+
+        all_classes = list(set(stock_class['class'].drop_duplicates().to_list()+self.B_w_pvt_input.iloc[-1].dropna().index.to_list()))
+        index_price = self.Index_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:,all_classes]
+
+
+
+        latestrebal_price=pd.concat([stock_price, index_price], axis=1).dropna(how='all', axis=0).dropna(axis=0)
+        MTD_return = latestrebal_price.pct_change().add(1).cumprod().sub(1)
+        MTD_return.iloc[0]=0
+        source_for_chart = self.to_source(MTD_return)
+        return_TS_obj = figure(x_axis_type='datetime',
+                               title='MTD 기간' + f'({MTD_return.index[0].strftime("%Y-%m-%d")} ~ {MTD_return.index[-1].strftime("%Y-%m-%d")})',
+                               width=1500, height=450, toolbar_location=toolbar_location)
+
+        BM_info = self.B_w_pvt_input.iloc[-1].dropna().copy()
+        for idx in stock_class['class'].drop_duplicates():
+            if idx in BM_info.index:
+                continue
+            else:
+                BM_info.loc[idx]=0
+        latest_port_w = pd.concat([self.Port_latest_rebalancing[['today']].dropna().assign(info='Port'),pd.DataFrame(BM_info.rename('today')).assign(info='BM')],axis=0)
+        # latest_code_to_name = self.code_to_name.copy()
+
+        return_TS_lgd_list = []
+        for i, col in enumerate(MTD_return.columns):
+            return_TS_line = return_TS_obj.line(source=source_for_chart, x=self.cum_ret_cmpd.index.name, y=col, color=self.color_list[i], line_width=2)
+            today_w=latest_port_w.loc[col]
+            try:
+                stock_name=f"({self.code_to_name.loc[col, 'class']}){self.code_to_name.loc[col, '종목명']}"
+            except:
+                stock_name="BM"
+            return_TS_lgd_list.append((f'{today_w["info"]} - {col}[{stock_name}] - ({int(today_w["today"]*10000)/100}%)', [return_TS_line]))
+        return_TS_lgd = Legend(items=return_TS_lgd_list, location='center')
+        return_TS_obj.add_layout(return_TS_lgd, 'right')
+        return_TS_obj.legend.click_policy = "hide"
+        return_TS_obj.yaxis.formatter = NumeralTickFormatter(format='0 %')
+
+        # 마우스 올렸을 때 값 표시
+        if self.hover:
+            # HoverTool 설정을 위한 데이터 필드 목록 생성
+            tooltips = [("Date", "@date{%F}")]
+            tooltips += [(col, f"@{{{col}}}{{0.00%}}") for col in MTD_return.columns]
+
+            hover = HoverTool(
+                tooltips=tooltips,
+                formatters={"@date": "datetime"}
+            )
+            return_TS_obj.add_tools(hover)
+        return return_TS_obj
     def get_MTD_rtn_tbl_obj(self):
+        stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:, self.P_w_pvt_input.iloc[-1].dropna().index]
+        stock_class = self.code_to_name.loc[stock_price.columns]
+
+        all_classes = list(set(stock_class['class'].drop_duplicates().to_list() + self.B_w_pvt_input.iloc[-1].dropna().index.to_list()))
+        index_price = self.Index_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:, all_classes]
+
+        latestrebal_price = pd.concat([stock_price, index_price], axis=1).dropna(how='all', axis=0).dropna(axis=0)
+        MTD_return = latestrebal_price.pct_change().add(1).cumprod().sub(1)
+        MTD_return.iloc[0] = 0
+
+        BM_info = self.B_w_pvt_input.iloc[-1:].T.dropna(axis=0)
+        for idx in stock_class['class'].drop_duplicates():
+            if idx in BM_info.index:
+                continue
+            else:
+                BM_info.loc[idx]=0
+        BM_info.columns = ['today']
+        BM_info['종목명']=""
+        BM_info['class']=BM_info.index
+        BM_info['MTD기여도'] = MTD_return.iloc[-1].mul(BM_info['today']).dropna()
+        BM_info['MTD등락률'] = MTD_return.iloc[-1]
+        BM_info['weight'] = self.BM_daily_account_ratio.iloc[-1]
+
+        BM_ret_cntrbtn=sum(BM_info['MTD기여도'])
+        BM_info=BM_info.reset_index()
+        BM_info.loc['sumBM']=""
+        BM_info.loc['sumBM', 'MTD기여도'] = BM_ret_cntrbtn
+        #########################################
+
         MTD_price=gdu.data[self.Port_latest_rebalancing['today'].dropna().index].loc[self.Port_rebal_date_class.index[-1]:].dropna(how='all', axis=0)
         MTD_return = MTD_price.pct_change().add(1).cumprod().sub(1).iloc[-1]
-        MTD_contribution = MTD_return.mul(self.Port_latest_rebalancing['today'].dropna())
-        MTD_contribution.index = [self.code_to_name.loc[x,'종목명'] for x in MTD_contribution.index]
+        MTD_contribution = MTD_return.mul(self.Port_latest_rebalancing['today'].dropna()).rename('MTD기여도').to_frame().assign(MTD등락률=MTD_return,
+                                                                                                                             weight=self.Port_daily_account_ratio.iloc[-1],
+                                                                                                                             today=self.Port_latest_rebalancing['today']).rename_axis('code', axis=0).reset_index()
+        MTD_contribution['class'] = MTD_contribution['code'].apply(lambda x: self.code_to_name.loc[x, 'class'])
+        MTD_contribution['종목명'] = MTD_contribution['code'].apply(lambda x: self.code_to_name.loc[x, '종목명'])
+        ret_cntrbtn = MTD_contribution['MTD기여도'].sum()
+        MTD_contribution.loc['sum']=""
+        MTD_contribution.loc['sum', 'MTD기여도'] =ret_cntrbtn
 
 
-        static_data_tmp = MTD_contribution.copy()
-        static_data_tmp = static_data_tmp.map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
+        static_data_tmp = pd.concat([MTD_contribution, BM_info], axis=0).reset_index(drop=True)
+
+
+
+        static_data_tmp['today'] = static_data_tmp['today'].map(lambda x: str(np.int64(x * 10000) / 100) + "%" if type(x) != str else x)
+        static_data_tmp['MTD기여도'] = static_data_tmp['MTD기여도'].map(lambda x: str(int(x * 10000) / 100) + "%" if type(x) != str else x)
+        static_data_tmp['MTD등락률'] = static_data_tmp['MTD등락률'].map(lambda x: str(int(x * 10000) / 100) + "%" if type(x) != str else x)
+        static_data_tmp['weight'] = static_data_tmp['weight'].fillna(0).map(lambda x: str(int(x * 10000) / 100) + "%" if type(x) != str else x)
+
+
+        decomp_df=self.decompose_allocation_effect_BM_Port.loc[self.latest_rebal_date].loc[['alpha','Port', 'BM', 'Allocation Effect','Selection Effect']]#.rename(index={'Port':self.Port_nm, "BM":self.BM_nm})
+        decomp_df=decomp_df.map(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
+        static_data_tmp=pd.concat([static_data_tmp, pd.DataFrame(decomp_df.rename('weight'))], axis=0)
+        static_data_tmp.loc[['alpha','Port', 'BM', 'Allocation Effect','Selection Effect'],'today'] = ['alpha',self.Port_nm, self.BM_nm, 'Allocation Effect','Selection Effect']
+
 
         static_data_tmp[static_data_tmp.isnull()] = ""
-        # static_data_tmp = static_data_tmp.reset_index()
-        # static_data=static_data_tmp[['code', '종목명', 'return contribution','previous', 'today', 'delta','previous_performance']].rename(
-        #                     columns={'code':'종목코드', 'today':'최근리밸런싱', 'previous':'직전리밸런싱', 'delta':'변화', 'return contribution':'수익률 기여도', 'previous_performance':'직전리밸런싱 성과'})
-        static_data=static_data_tmp.rename_axis("").rename('MTD기여도').reset_index()
+        static_data=static_data_tmp[['code', '종목명', 'class', 'MTD기여도','MTD등락률','today','weight',]].rename(
+                            columns={'code':'종목코드',
+                                     'class':'자산군',
+                                     'change':'변화율',
+                                     'today':'최근리밸런싱',
+                                     'previous':'직전리밸런싱',
+                                     'delta':'변화',
+                                     'weight':'현재 포트폴리오비중',
+                                     'return contribution':'수익률 기여도',
+                                     'previous_performance':'직전리밸런싱 성과'
+                                     })
+
         source = ColumnDataSource(static_data)
 
         # columns = [TableColumn(field=col, title=col) for col in static_data.columns]
@@ -3053,7 +3269,61 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         # 각 컬럼에 HTML 템플릿 포맷터 적용
         columns = [TableColumn(field=col, title=col, formatter=formatter) for col in static_data.columns]  # 수정됨
 
-        data_table_fig = DataTable(source=source, columns=columns, width=int(1500*(1/3)), height=200, index_position=None)
+        data_table_fig = DataTable(source=source, columns=columns, width=1000, height=750, index_position=None)
+
+        # 제목을 위한 Div 위젯 생성
+        title_div = Div(text=f"<h2>MTD report: {self.latest_rebal_date.strftime('%Y-%m-%d')}</h2>", width=1000, height=30)
+
+
+        # Div와 DataTable을 column 레이아웃으로 결합
+        layout = column(title_div, data_table_fig)
+
+        # show(layout)
+        return layout
+
+    def get_MTD_rtn_tbl_obj_old(self):
+        stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:, self.P_w_pvt_input.iloc[-1].dropna().index]
+        stock_class = self.code_to_name.loc[stock_price.columns]
+
+        all_classes = list(set(stock_class['class'].drop_duplicates().to_list() + self.B_w_pvt_input.iloc[-2].dropna().index.to_list()))
+        index_price = self.Index_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:, all_classes]
+
+        latestrebal_price = pd.concat([stock_price, index_price], axis=1).dropna(how='all', axis=0).dropna(axis=0)
+        MTD_return = latestrebal_price.pct_change().add(1).cumprod().sub(1)
+        MTD_return.iloc[0] = 0
+
+        BM_info = self.B_w_pvt_input.iloc[-2:].T.dropna(axis=0)
+        for idx in stock_class['class'].drop_duplicates():
+            if idx in BM_info.index:
+                continue
+            else:
+                BM_info.loc[idx] = 0
+
+        MTD_price=gdu.data[self.Port_latest_rebalancing['today'].dropna().index].loc[self.Port_rebal_date_class.index[-1]:].dropna(how='all', axis=0)
+        MTD_return = MTD_price.pct_change().add(1).cumprod().sub(1).iloc[-1]
+        MTD_contribution = MTD_return.mul(self.Port_latest_rebalancing['today'].dropna()).rename('MTD기여도').to_frame().assign(MTD등락률=MTD_return)
+        MTD_contribution.index = [self.code_to_name.loc[x,'종목명'] for x in MTD_contribution.index]
+
+
+        static_data_tmp = MTD_contribution.copy()
+        static_data_tmp = static_data_tmp.applymap(lambda x: "+"+str(int(x*10000)/100)+"%" if x>0 else f'({str(int(x * 10000) / 100)})%')
+
+        static_data_tmp[static_data_tmp.isnull()] = ""
+        # static_data_tmp = static_data_tmp.reset_index()
+        # static_data=static_data_tmp[['code', '종목명', 'return contribution','previous', 'today', 'delta','previous_performance']].rename(
+        #                     columns={'code':'종목코드', 'today':'최근리밸런싱', 'previous':'직전리밸런싱', 'delta':'변화', 'return contribution':'수익률 기여도', 'previous_performance':'직전리밸런싱 성과'})
+        static_data=static_data_tmp.rename_axis("").reset_index()
+        source = ColumnDataSource(static_data)
+
+        # columns = [TableColumn(field=col, title=col) for col in static_data.columns]
+
+        # 폰트 크기를 조정하기 위한 HTML 템플릿 포맷터 생성
+        formatter = HTMLTemplateFormatter(template='<div style="font-size: 16px;"><%= value %></div>')  # 수정됨
+
+        # 각 컬럼에 HTML 템플릿 포맷터 적용
+        columns = [TableColumn(field=col, title=col, formatter=formatter) for col in static_data.columns]  # 수정됨
+
+        data_table_fig = DataTable(source=source, columns=columns, width=int(1500*(1/2)), height=300, index_position=None)
 
         # 제목을 위한 Div 위젯 생성
         title_div = Div(text=f"<h2>MTD기여도: {MTD_price.index[0].strftime('%Y-%m-%d')} ~ {MTD_price.index[-1].strftime('%Y-%m-%d')}</h2>", width=1000, height=30)
@@ -3064,6 +3334,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
         # show(layout)
         return layout
+
 
 
 if __name__ == "__main__":
@@ -3094,10 +3365,17 @@ if __name__ == "__main__":
     #                 'A148070': '국내채권',
     #                'A379800': '해외주식',
     #               'A308620': '해외채권'}
-    BM_code_to_index={'KBPMABIN': '국내채권',
-                      "KOSPI Index":'국내주식', 'LEGATRUU Index': '해외채권',
-                      'RUGL Index':'리츠', 'SPGSGC Index':'금',
-                      'NDUEEGF Index':'신흥주식','NDDUWI Index':'선진주식'} # NDUEACWF:해외주식
+
+    BM_code_to_index={
+                      'KBPMABIN': '국내채권',
+                      "KOSPI Index":'국내주식',
+                      'LEGATRUU Index': '해외채권',
+                      'RUGL Index':'리츠',
+                      'SPGSGC Index':'금',
+                      'NDUEEGF Index':'신흥주식',
+                      'NDDUWI Index':'선진주식',
+                       # 'NDUEACWF':'해외주식'
+                       }
 
     index_price = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='Index', index_col=0, parse_dates=[0]).rename(columns=BM_code_to_index)
     index_price['대안자산'] = index_price[['금','리츠']].pct_change().mean(1).fillna(0).add(1).cumprod()
@@ -3112,7 +3390,8 @@ if __name__ == "__main__":
     # price_df.loc[pd.to_datetime("2024-02-02")] = price_df.iloc[-1]
     # index_price.loc[pd.to_datetime("2024-02-01")] = index_price.iloc[-1]
     # index_price.loc[pd.to_datetime("2024-02-02")] = index_price.iloc[-1]
-    Stock_Daily_price_input = price_df.loc[:"2024-02-13"].copy()
+    Stock_Daily_price_input = price_df.loc[:"2024-02-28"].copy()
+    print(Stock_Daily_price_input)
     Index_Daily_price_input = index_price.copy()
     # Index_Daily_price_input = Stock_Daily_price_input[['A069500','A148070','A379800','A308620']].rename(columns=BM_code_to_index)
 
@@ -3132,18 +3411,18 @@ if __name__ == "__main__":
     Asset_info_input.loc['A411060', 'class'] = '대안자산'
     Asset_info_input.loc['A437080', 'class'] = '해외채권'
     Asset_info_input.loc['A452360', 'class'] = '선진주식'
-    Asset_info_input.loc['A455850', 'class'] = '선진주식'
+    Asset_info_input.loc['A455850', 'class'] = '신흥주식'
     Asset_info_input.loc['A329200', 'class'] = '대안자산'
     Asset_info_input.loc['A302190', 'class'] = '국내채권'
     Asset_info_input = Asset_info_input.reset_index()[['종목코드', '종목명', 'class']]
 
 
-    self=BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./LL_risk')
+    # self=BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./LL_risk')
     # self.BrinsonHoodBeebower_report()
-
-    BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./H_risk_20240213').BrinsonHoodBeebower_report()
-    BrinsonHoodBeebower_PortfolioAnalysis(Mrisk_w_pvt_input.div(100),MB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./M_risk_20240213').BrinsonHoodBeebower_report()
-    BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./L_risk_20240213').BrinsonHoodBeebower_report()
+    # dsadasdsadsa
+    BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./H_risk_20240221').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Mrisk_w_pvt_input.div(100),MB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./M_risk_20240221').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./L_risk_20240221').BrinsonHoodBeebower_report()
 
 
     # ####################################################################### 섹터 배분 예시
