@@ -866,13 +866,18 @@ class BrinsonHoodBeebower_calculator(retcnt_calculator):
         return P_w_pvt_normalized
     def convert_pvt_wrt_class(self, w_pvt_, convert=True):
         # w_pvt_ = B_w_pvt.copy()
+        # w_pvt_ = P_w_pvt_.copy()
         if convert:
             nw_pvt_ = self.get_normed_pvt(w_pvt_, self.Asset_info)
+            # cr_pvt_tag = self.period_ExPost[w_pvt_.notna()].fillna(0).mul(nw_pvt_, fill_value=1).stack().rename('value').reset_index('date').merge(pd.DataFrame([self.Asset_info.to_dict()]).stack().droplevel(0).rename('class').reset_index().set_index('index'), how='left', left_index=True, right_index=True).rename_axis('code').dropna(subset='class', axis=0).reset_index().pivot(index='date', columns=['class', 'code'], values='value')  # .stack()
         else:
             nw_pvt_ = w_pvt_.copy()
-        cr_pvt_ = self.period_ExPost[w_pvt_.notna()].fillna(0).mul(nw_pvt_, fill_value=1).rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
-        cw_pvt_ = w_pvt_.rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
-        return cw_pvt_,cr_pvt_
+            # cr_pvt_tag = self.period_ExPost[w_pvt_.notna()].fillna(0).mul(nw_pvt_, fill_value=1).rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
+        cr_pvt = self.period_ExPost[w_pvt_.notna()].fillna(0).mul(nw_pvt_, fill_value=1).rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
+        cw_pvt = w_pvt_.rename(columns=self.Asset_info.to_dict()).stack().groupby(level=[0, 1]).sum().unstack()
+        # cw_pvt = w_pvt_.stack().rename('value').reset_index('date').merge(pd.DataFrame([self.Asset_info.to_dict()]).stack().droplevel(0).rename('class').reset_index().set_index('index'), how='left', left_index=True, right_index=True).rename_axis('code').dropna(subset='class', axis=0).reset_index().pivot(index='date', columns=['class', 'code'], values='value')
+        # return cw_pvt_tag,cr_pvt_tag
+        return cw_pvt,cr_pvt
     def get_AA_effects(self, P_w_pvt_, B_w_pvt_):
         # P_w_pvt_, B_w_pvt_ = P_w_pvt.copy(), B_w_pvt.copy()
         rP_ = P_w_pvt_.mul(self.period_ExPost).dropna(how='all', axis=0).dropna(how='all', axis=1).sum(1)
@@ -881,24 +886,39 @@ class BrinsonHoodBeebower_calculator(retcnt_calculator):
 
         ######################## class별 변환
         P_cw_pvt_, P_cr_pvt_ = self.convert_pvt_wrt_class(P_w_pvt_)
-        P_classweight_pvt = P_cw_pvt_.copy()
         B_cw_pvt_, B_cr_pvt_ = self.convert_pvt_wrt_class(B_w_pvt_, convert=False)
-        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index].pct_change(fill_method=None).shift(-1)
+
+        # P_cw_pvt_tag, P_cr_pvt_tag = self.convert_pvt_wrt_class(P_w_pvt_)
+        # B_cw_pvt_tag, B_cr_pvt_tag = self.convert_pvt_wrt_class(B_w_pvt_, convert=False)
+
+        # P_cw_pvt_ = P_cw_pvt_tag.stack().stack().groupby(['date','class']).sum().unstack()
+        # P_cr_pvt_ = P_cr_pvt_tag.stack().stack().groupby(['date','class']).sum().unstack()
+        # B_cw_pvt_ = B_cw_pvt_tag.copy()#.stack().stack().groupby(['date','class']).sum().unstack()
+        # B_cr_pvt_ = B_cr_pvt_tag.copy()#.stack().stack().groupby(['date','class']).sum().unstack()
+
+        # P_cw_pvt_tag, P_cr_pvt_tag = cw_pvt_tag.copy(), cr_pvt_tag.copy()
+        P_classweight_pvt = P_cw_pvt_.copy()
+        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index.to_list()+[self.Index_Daily_price_input.index[-1]]].pct_change(fill_method=None).shift(-1).dropna(how='all', axis=0)
 
         # Allocation Effect
         wPj_minus_wBj_ = P_cw_pvt_.sub(B_cw_pvt_, fill_value=0)  # .rename(columns=Asset_info_input.to_dict()).stack().groupby(level=[0,1]).sum().unstack()
+        # wPj_minus_wBj_=P_cw_pvt_tag.sub(P_cw_pvt_tag.stack().stack().div(P_cw_pvt_tag.stack().stack().groupby(['date','class']).sum()).unstack(1).unstack(1).mul(B_cw_pvt_, level=0), fill_value=0)
+        # P_cw_pvt_tag.sub(P_cw_pvt_tag.stack().stack().div(P_cw_pvt_tag.stack().stack().groupby(['date', 'class']).sum()).unstack(1).unstack(1).mul(B_cw_pvt_, fill_value=0,level=0), fill_value=0).stack().stack().groupby(['date','class']).sum().unstack()
+
         print(f'Allocation Effect: \n{wPj_minus_wBj_.mul(I_cr_pvt_, fill_value=0).shift(1).iloc[-1].dropna()}')
         allocation_effect_tmp_ = wPj_minus_wBj_.mul(I_cr_pvt_, fill_value=0).sum(1)
+        wPj_minus_wBj_.mul(I_cr_pvt_, level=0, fill_value=0).sum(1)
+
 
         # Selection Effect
         rPj_minus_rIj_ = P_cr_pvt_.sub(I_cr_pvt_, fill_value=0)
         print(f'Selection Effect: \n{rPj_minus_rIj_.mul(P_cw_pvt_, fill_value=0).shift(1).iloc[-1].dropna()}')
         selection_effect_tmp_ = rPj_minus_rIj_.mul(P_cw_pvt_, fill_value=0).sum(1)
 
-        allocation_effect = allocation_effect_tmp_.shift(1)
-        selection_effect = selection_effect_tmp_.shift(1)
-        rB = rB_.shift(1)
-        rP = rP_.shift(1)
+        allocation_effect = allocation_effect_tmp_#.shift(1)
+        selection_effect = selection_effect_tmp_#.shift(1)
+        rB = rB_#.shift(1)
+        rP = rP_#.shift(1)
         # 확인
         # allocation_effect.add(selection_effect)
         # rP.sub(rB)
@@ -918,7 +938,12 @@ class BrinsonHoodBeebower_calculator(retcnt_calculator):
         print(f'Rebalancing-Out:\n{Port_out.mul(self.period_ExPost).iloc[-1].dropna()}')
         # Port_in_eff.add(Port_out_eff)
         # rP_.sub(rB_)
-        return Port_in_eff.shift(1), Port_out_eff.shift(1), rP_.shift(1), rB_.shift(1)
+        return Port_in_eff, Port_out_eff, rP_, rB_
+
+
+
+
+
 class BrinsonHoodBeebower_calculator_old(retcnt_calculator):
     def __init__(self, P_w_pvt_input,B_w_pvt_input,Asset_info_input,Index_Daily_price_input, cost=0.00, n_day_after=0):
         """
@@ -1054,7 +1079,7 @@ class BrinsonHoodBeebower_calculator_old(retcnt_calculator):
         Port_out_eff = Port_out.mul(self.period_ExPost).sum(1)
         # Port_in_eff.add(Port_out_eff)
         # rP_.sub(rB_)
-        return Port_in_eff.shift(1), Port_out_eff.shift(1), rP_.shift(1), rB_.shift(1)
+        return Port_in_eff, Port_out_eff, rP_, rB_
 
 if __name__ == "__main__":
     from tqdm import tqdm
