@@ -1,0 +1,11 @@
+*.pickle
+*.xlsx
+*.hd5
+*.html
+*.xml
+*.iml
+*.zip
+*.txt
+*.pyc
+*.css
+*.cfg

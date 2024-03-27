@@ -3339,12 +3339,13 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
 if __name__ == "__main__":
     from tqdm import tqdm
-    Hrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='고위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
-    Mrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='중위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
-    Lrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='저위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
-    HB_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='H_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
-    MB_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='M_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
-    LB_w_pvt_input = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='L_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    data_date = '20240327'
+    Hrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='고위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    Mrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='중위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    Lrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='저위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    HB_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='H_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    MB_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='M_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
+    LB_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='L_BM_pvt', index_col=0, parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
     HB_w_pvt_input = HB_w_pvt_input[HB_w_pvt_input>0].dropna(how='all', axis=1)
     MB_w_pvt_input = MB_w_pvt_input[MB_w_pvt_input>0].dropna(how='all', axis=1)
     LB_w_pvt_input = LB_w_pvt_input[LB_w_pvt_input>0].dropna(how='all', axis=1)
@@ -3377,7 +3378,7 @@ if __name__ == "__main__":
                        # 'NDUEACWF':'해외주식'
                        }
 
-    index_price = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='Index', index_col=0, parse_dates=[0]).rename(columns=BM_code_to_index)
+    index_price = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='Index', index_col=0, parse_dates=[0]).rename(columns=BM_code_to_index).sort_index()
     index_price['대안자산'] = index_price[['금','리츠']].pct_change().mean(1).fillna(0).add(1).cumprod()
     index_price = index_price.pct_change().add(1).cumprod()
     index_price.iloc[0]=1
@@ -3390,7 +3391,7 @@ if __name__ == "__main__":
     # price_df.loc[pd.to_datetime("2024-02-02")] = price_df.iloc[-1]
     # index_price.loc[pd.to_datetime("2024-02-01")] = index_price.iloc[-1]
     # index_price.loc[pd.to_datetime("2024-02-02")] = index_price.iloc[-1]
-    Stock_Daily_price_input = price_df.loc[:"2024-02-28"].copy()
+    Stock_Daily_price_input = price_df.loc[:f"{data_date}"].copy()
     print(Stock_Daily_price_input)
     Index_Daily_price_input = index_price.copy()
     # Index_Daily_price_input = Stock_Daily_price_input[['A069500','A148070','A379800','A308620']].rename(columns=BM_code_to_index)
@@ -3414,15 +3415,17 @@ if __name__ == "__main__":
     Asset_info_input.loc['A455850', 'class'] = '신흥주식'
     Asset_info_input.loc['A329200', 'class'] = '대안자산'
     Asset_info_input.loc['A302190', 'class'] = '국내채권'
+    Asset_info_input.loc['A245710', 'class'] = '신흥주식'
+    Asset_info_input.loc['A360750', 'class'] = '선진주식'
     Asset_info_input = Asset_info_input.reset_index()[['종목코드', '종목명', 'class']]
 
 
     # self=BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./LL_risk')
     # self.BrinsonHoodBeebower_report()
     # dsadasdsadsa
-    BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./H_risk_20240221').BrinsonHoodBeebower_report()
-    BrinsonHoodBeebower_PortfolioAnalysis(Mrisk_w_pvt_input.div(100),MB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./M_risk_20240221').BrinsonHoodBeebower_report()
-    BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./L_risk_20240221').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./H_risk_{data_date}').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Mrisk_w_pvt_input.div(100),MB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./M_risk_{data_date}').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./L_risk_{data_date}').BrinsonHoodBeebower_report()
 
 
     # ####################################################################### 섹터 배분 예시
@@ -3484,4 +3487,4 @@ if __name__ == "__main__":
     # Asset_info.columns = ['code', 'class1', 'class2']
     # Asset_info['code'] = Asset_info['code'].astype(str).apply(lambda x: 'A'+'0'*(6-len(x))+x)
     # Asset_info['class'] = Asset_info['class1'] + Asset_info['class2']
-    # Asset_info_input = Asset_info.set_index('code')['class']
+    # Asset_info_input = Asset_info.set_index('code')['class'];
