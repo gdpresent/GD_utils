@@ -143,20 +143,21 @@ class FactorAnalysis:
         output_df['IR'] = Active_Calc.cagr / Active_Calc.std
 
         def calc_monthly_hit(df):
-            return (df.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)) > 1).agg(
-                [sum, len]).T.assign(win=lambda x: x['sum'] / x['len'])['win']
+            return (df.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)) > 1).agg([sum, len]).T.assign(win=lambda x: x['sum'] / x['len'])['win']
         def calc_rolling1Y_hit(df):
-            return (df.add(1).cumprod().pct_change(250).dropna(axis=0) > 0).agg([sum, len]).T.assign(
-                win=lambda x: x['sum'] / x['len'])['win']
+            return (df.add(1).cumprod().pct_change(250).dropna(axis=0) > 0).agg([sum, len]).T.assign(win=lambda x: x['sum'] / x['len'])['win']
 
         output_df['Hit'] = calc_monthly_hit(return_daily)
-        output_df['R-Hit'] = calc_rolling1Y_hit(return_daily)
         output_df['Hit(alpha)'] = calc_monthly_hit(alpha_daily)
-        output_df['R-Hit(alpha)'] = calc_rolling1Y_hit(alpha_daily)
+        try:
+            output_df['R-Hit'] = calc_rolling1Y_hit(return_daily)
+            output_df['R-Hit(alpha)'] = calc_rolling1Y_hit(alpha_daily)
+        except:
+            pass
         return output_df
 
     def factor_report(self, col_name, drtion, outputname='./UnnamedReport', display=True):
-        # col_name, drtion = '매출총이익_매출액', False
+        # col_name, drtion = 'factor', False
         from bokeh.plotting import output_file, show, curdoc, save
         from bokeh.layouts import column, row
         from bokeh.models import Column
@@ -176,7 +177,13 @@ class FactorAnalysis:
         top5 = self.get_top_n_result(col_name, drtion, 5).rename('Top 5')
         top10 = self.get_top_n_result(col_name, drtion, 10).rename('Top 10')
         top20 = self.get_top_n_result(col_name, drtion, 20).rename('Top 20')
-        top_n_df = pd.concat([top5, top10, top20, self._BM_data], axis=1).dropna()
+
+        # btm5 = self.get_top_n_result(col_name, not drtion, 5).rename('Bottom 5')
+        # btm10 = self.get_top_n_result(col_name, not drtion, 10).rename('Bottom 10')
+        # btm20 = self.get_top_n_result(col_name, not drtion, 20).rename('Bottom 20')
+
+        top_n_df = pd.concat([top5, top10, top20,self._BM_data], axis=1).dropna()
+        # top_n_df = pd.concat([top5, top10, top20, btm5, btm10, btm20,self._BM_data], axis=1).dropna()
         top_n_fig = PortfolioAnalysis(top_n_df.pct_change().fillna(0), last_BM=True)
 
         top_n_logscale_return_TS_obj = top_n_fig.get_logscale_rtn_obj('above')

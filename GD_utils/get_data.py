@@ -6,6 +6,8 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 import time
 import yfinance as yf
+import json
+import urllib.request
 yf.pdr_override()
 
 # 네이버 차트에서 수정주가(종가, 시가)
@@ -53,6 +55,28 @@ def get_naver_close(company_codes):
             output = pd.concat([output, df[[company_code]]], axis=1)
     return output
 
+# 국내 ETF 목록
+def get_KR_ETF_list():
+    url = 'https://finance.naver.com/api/sise/etfItemList.nhn'
+    raw_data = urllib.request.urlopen(url).read().decode('CP949')
+    json_data = json.loads(raw_data)
+    json_data['resultCode']
+
+    output=pd.DataFrame(json_data['result']['etfItemList'])
+    col_name={'itemcode':'종목코드',
+              'etfTabCode':'ETF코드',
+              'itemname':'종목명',
+              'nowVal':'현재가',
+              'changeVal':'전일비',
+              'changeRate':'등락률',
+              'nav':'NAV',
+              'threeMonthEarnRate':'3개월수익률',
+              'quant':'거래량',
+              'amonut':'거래대금',
+              'marketSum':'시가총액',
+              }
+    output = output.rename(columns=col_name)
+    return output
 
 # 야후 수정주가 가져오기
 def get_all_yahoo_data_old(name):
