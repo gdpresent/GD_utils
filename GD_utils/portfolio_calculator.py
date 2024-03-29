@@ -12,7 +12,7 @@ from bokeh.transform import dodge,transform,cumsum
 from bokeh.models import ColumnDataSource, LinearColorMapper, ColorBar, BasicTicker, PrintfTickFormatter, LabelSet
 from bokeh.models import NumeralTickFormatter, Span, HoverTool, FactorRange, Legend, Column, Dodge, HTMLTemplateFormatter,Div
 from bokeh.models.widgets import DataTable, TableColumn
-from bokeh.palettes import RdBu, Category20_20, Category20c, HighContrast3,Pastel1
+from bokeh.palettes import RdBu, Category20_20, Category20c, Pastel1
 from bokeh.plotting import figure, output_file, show, curdoc, save
 from bokeh.layouts import column, row
 
