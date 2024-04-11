@@ -26,6 +26,21 @@ def get_data_naver(company_code):
         df_inf.iloc[i] = str(inf[i]['data']).split('|')
     df_inf.index = pd.to_datetime(df_inf['date'])
     return df_inf.drop('date', axis=1).astype(float)
+def get_data_naver_1Y(company_code):
+    # count=3000에서 3000은 과거 3,000 영업일간의 데이터를 의미. 사용자가 조절 가능
+    url = "https://fchart.stock.naver.com/sise.nhn?symbol={}&timeframe=day&count=300&requestType=0".format(company_code)
+    get_result = requests.get(url)
+    bs_obj = BeautifulSoup(get_result.content, "html.parser")
+
+    # information
+    inf = bs_obj.select('item')
+    columns = ['date', 'Open', 'High', 'Low', 'Close', 'Volume']
+    df_inf = pd.DataFrame([], columns=columns, index=range(len(inf)))
+
+    for i in range(len(inf)):
+        df_inf.iloc[i] = str(inf[i]['data']).split('|')
+    df_inf.index = pd.to_datetime(df_inf['date'])
+    return df_inf.drop('date', axis=1).astype(float)
 def get_naver_open_close(company_codes):
     output = pd.DataFrame()
     if type(company_codes)==str:
