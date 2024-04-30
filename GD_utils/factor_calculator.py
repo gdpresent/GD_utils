@@ -158,6 +158,7 @@ class FactorAnalysis:
 
     def factor_report(self, col_name, drtion, outputname='./UnnamedReport', display=True):
         # col_name, drtion = 'factor', False
+        # col_name, drtion, outputname= 'factor', False, './model05p20_Final'
         from bokeh.plotting import output_file, show, curdoc, save
         from bokeh.layouts import column, row
         from bokeh.models import Column

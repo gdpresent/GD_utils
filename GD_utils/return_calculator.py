@@ -288,7 +288,7 @@ class return_calculator_Faster:
 
 # 2024-01-22 디버그 완료
 class return_calculator:
-    def __init__(self, ratio_df, cost=0.00, n_day_after=0):
+    def __init__(self, ratio_df, cost, n_day_after=0):
         """
         :param ratio_df:    (
                             index   - rebalancing dates
@@ -316,20 +316,20 @@ class return_calculator:
         self.ratio_df_selldate = self.ratio_df.iloc[1:]
 
         # 일별수익률
-        _rnt_dt = price_df.pct_change(fill_method=None).loc[:,self.ratio_df.columns]
+        _rnt_dt = price_df.pct_change().loc[:,self.ratio_df.columns]
 
         # 리밸런싱 날짜별로 잘 그루핑을 해놓자
         gr_rtn = self.get_df_grouped(_rnt_dt)
         # self.grouped_return = gr_rtn.apply(lambda x:x).drop('gr_idx', axis=1)
 
         # 회전율 관련
-        self.daily_account_ratio = gr_rtn.apply(self.calc_bt_daily_ratio).droplevel(0) # 실제 일별 내 계좌 잔고의 종목별 비중[%]
+        self.daily_account_ratio = gr_rtn.apply(self.calc_bt_daily_ratio)#.droplevel(0) # 실제 일별 내 계좌 잔고의 종목별 비중[%]
         self.daily_account_ratio.loc[self.ratio_df.index[0]] = self.ratio_df.iloc[0] # 첫날 비중은 그대로
         self.daily_account_ratio= self.daily_account_ratio.sort_index()
         self.stockwise_turnover_ratio = self.calc_rb_turnover(self.daily_account_ratio) # 실제 리밸런싱 날짜의 종목별 회전율
         self.portfolio_turnover_ratio = abs(self.stockwise_turnover_ratio).sum(1).div(2) # 실제 리밸런싱 날짜의 회전율
 
-        self.portfolio_daily_return = gr_rtn.apply(self.calc_ret_cntrbtn).droplevel(0).sort_index()
+        self.portfolio_daily_return = gr_rtn.apply(self.calc_ret_cntrbtn).droplevel(0).sort_index() # 
         self.portfolio_cumulative_return = self.portfolio_daily_return.add(1).cumprod()
 
 
@@ -436,7 +436,7 @@ class retcnt_calculator:
         self.ratio_df_selldate = self.ratio_df.iloc[1:]
 
         # 일별수익률
-        _rnt_dt = price_df.pct_change(fill_method=None).loc[:,ratio_df.columns].fillna(0)
+        _rnt_dt = price_df.pct_change().loc[:,ratio_df.columns].fillna(0)
 
         # 리밸런싱 날짜별로 잘 그루핑을 해놓자
         gr_rtn = self.get_df_grouped(_rnt_dt)
@@ -573,7 +573,7 @@ class BrinsonFachler_calculator(retcnt_calculator):
         self.ratio_df_buydate.index = self.b_dts
         self.ratio_df_selldate = P_w_pvt_input.iloc[1:]
 
-        _rnt_dt = price_df.pct_change(fill_method=None)
+        _rnt_dt = price_df.pct_change()
         gr_rtn = self.get_df_grouped(_rnt_dt)
         self.period_ExPost = gr_rtn.apply(lambda x: x.add(1).prod()-1)
         self.period_ExPost.index = P_w_pvt_input.index
@@ -677,7 +677,7 @@ class Modified_BrinsonFachler_calculator(retcnt_calculator):
         self.ratio_df_buydate.index = self.b_dts
         self.ratio_df_selldate = P_w_pvt_input.iloc[1:]
 
-        _rnt_dt = price_df.pct_change(fill_method=None)
+        _rnt_dt = price_df.pct_change()
         gr_rtn = self.get_df_grouped(_rnt_dt)
         self.period_ExPost = gr_rtn.apply(lambda x: x.add(1).prod()-1)
         self.period_ExPost.index = P_w_pvt_input.index
@@ -743,7 +743,7 @@ class Modified_BrinsonFachler_calculator(retcnt_calculator):
         P_cw_pvt_, P_cr_pvt_ = self.convert_pvt_wrt_class(P_w_pvt_)
         P_classweight_pvt = P_cw_pvt_.copy()
         B_cw_pvt_, B_cr_pvt_ = self.convert_pvt_wrt_class(B_w_pvt_)
-        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index, P_cr_pvt_.columns].pct_change(fill_method=None).shift(-1)
+        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index, P_cr_pvt_.columns].pct_change().shift(-1)
 
         # Allocation Effect
         wPj_minus_wBj_ = P_cw_pvt_.sub(B_cw_pvt_,
@@ -810,7 +810,7 @@ class BrinsonHoodBeebower_calculator(retcnt_calculator):
         self.ratio_df_selldate = P_w_pvt_input.iloc[1:]
         self.ratio_df_selldate.index = self.s_dts
 
-        _rnt_dt = price_df.pct_change(fill_method=None)
+        _rnt_dt = price_df.pct_change()
         gr_rtn = self.get_df_grouped(_rnt_dt)
         self.period_ExPost = gr_rtn.apply(lambda x: x.add(1).prod()-1)
         try:
@@ -899,7 +899,7 @@ class BrinsonHoodBeebower_calculator(retcnt_calculator):
 
         # P_cw_pvt_tag, P_cr_pvt_tag = cw_pvt_tag.copy(), cr_pvt_tag.copy()
         P_classweight_pvt = P_cw_pvt_.copy()
-        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index.to_list()+[self.Index_Daily_price_input.index[-1]]].pct_change(fill_method=None).shift(-1).dropna(how='all', axis=0)
+        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index.to_list()+[self.Index_Daily_price_input.index[-1]]].pct_change().shift(-1).dropna(how='all', axis=0)
 
         # Allocation Effect
         wPj_minus_wBj_ = P_cw_pvt_.sub(B_cw_pvt_, fill_value=0)  # .rename(columns=Asset_info_input.to_dict()).stack().groupby(level=[0,1]).sum().unstack()
@@ -975,7 +975,7 @@ class BrinsonHoodBeebower_calculator_old(retcnt_calculator):
         self.ratio_df_selldate = P_w_pvt_input.iloc[1:]
         self.ratio_df_selldate.index = self.s_dts
 
-        _rnt_dt = price_df.pct_change(fill_method=None)
+        _rnt_dt = price_df.pct_change()
         gr_rtn = self.get_df_grouped(_rnt_dt)
         self.period_ExPost = gr_rtn.apply(lambda x: x.add(1).prod()-1)
         try:
@@ -1049,7 +1049,7 @@ class BrinsonHoodBeebower_calculator_old(retcnt_calculator):
         P_cw_pvt_, P_cr_pvt_ = self.convert_pvt_wrt_class(P_w_pvt_)
         P_classweight_pvt = P_cw_pvt_.copy()
         B_cw_pvt_, B_cr_pvt_ = self.convert_pvt_wrt_class(B_w_pvt_, convert=False)
-        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index].pct_change(fill_method=None).shift(-1)
+        I_cr_pvt_ = self.Index_Daily_price_input.loc[P_cr_pvt_.index].pct_change().shift(-1)
 
         # Allocation Effect
         wPj_minus_wBj_ = P_cw_pvt_.sub(B_cw_pvt_, fill_value=0)  # .rename(columns=Asset_info_input.to_dict()).stack().groupby(level=[0,1]).sum().unstack()

@@ -12,7 +12,7 @@ from bokeh.transform import dodge,transform,cumsum
 from bokeh.models import ColumnDataSource, LinearColorMapper, ColorBar, BasicTicker, PrintfTickFormatter, LabelSet
 from bokeh.models import NumeralTickFormatter, Span, HoverTool, FactorRange, Legend, Column, Dodge, HTMLTemplateFormatter,Div
 from bokeh.models.widgets import DataTable, TableColumn
-from bokeh.palettes import RdBu, Category20_20, Category20c, Pastel1
+from bokeh.palettes import RdBu, Category20_20, Category20c, Pastel1, HighContrast3
 from bokeh.plotting import figure, output_file, show, curdoc, save
 from bokeh.layouts import column, row
 
@@ -360,7 +360,7 @@ class PortfolioAnalysis:
         # data_table_fig = DataTable(source=source, columns=columns, width=_width, height=500, index_position=None)
 
 
-        return data_table_fig
+        return data_table_fig, static_data
     def get_table_obj_5Y(self,_width=400, all_None=False):
         if all_None:
             cumrnt=cagr=std=sharpe=sortino=average_drawdown=mdd=alpha_cumrnt=alpha_cagr=alpha_std=alpha_sharpe=alpha_sortino=alpha_average_drawdown=alpha_mdd=np.nan
@@ -390,7 +390,7 @@ class PortfolioAnalysis:
         # columns = [TableColumn(field=col, title=col, formatter=formatter) for col in static_data.columns]
         # data_table_fig = DataTable(source=source, columns=columns, width=_width, height=500, index_position=None)
 
-        return data_table_fig
+        return data_table_fig, static_data
     def get_table_obj(self, _width=400):
         try:
             static_data = pd.concat(
@@ -412,7 +412,7 @@ class PortfolioAnalysis:
         source = ColumnDataSource(static_data)
         columns = [TableColumn(field=col, title=col) for col in static_data.columns]
         data_table_fig = DataTable(source=source, columns=columns, width=_width, height=300, index_position=None)
-        return data_table_fig
+        return data_table_fig, static_data
     def get_alpha_table_obj(self,_width=350):
         try:
             static_data = pd.concat(
@@ -442,7 +442,7 @@ class PortfolioAnalysis:
         # columns = [TableColumn(field=col, title=col, formatter=formatter) for col in static_data.columns]
         # data_table_fig = DataTable(source=source, columns=columns, width=_width, height=300, index_position=None)
 
-        return data_table_fig
+        return data_table_fig, static_data
     def get_inputtable_obj(self, input_tbl):
         # input_tbl = metric_table_decile.copy()
 
@@ -461,7 +461,7 @@ class PortfolioAnalysis:
         source = ColumnDataSource(input_tbl)
         columns = [TableColumn(field=col, title=col) for col in input_tbl.columns]
         data_table_fig = DataTable(source=source, columns=columns, width=1500, height=200, index_position=None)
-        return data_table_fig
+        return data_table_fig, input_tbl
     def get_smpl_rtn_obj(self, toolbar_location):
         # Plot 단리
         source_for_chart = self.to_source(self.cum_ret_smpl)
@@ -2287,8 +2287,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                                                                                  ex. KODEX200, ARIRANG200, TIGER200 --> KOSPI
         Index_Daily_price_input: index='(daily)date', columns='(지수)code', values='base-price'
         """
-        # Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,
-        # yearly=False,outputname='./H_risk_20240221'
+        # P_w_pvt_input,B_w_pvt_input = Hrisk_w_pvt_input.div(100).copy(), HB_w_pvt_input.copy()
         self.Stock_Daily_price_input, self.Index_Daily_price_input=Stock_Daily_price_input.copy(),Index_Daily_price_input.copy()
         gdu.data = pd.concat([self.Stock_Daily_price_input,self.Index_Daily_price_input], axis=1)
         self.code_to_name = Asset_info_input.set_index('종목코드')[['종목명','class']]
@@ -2421,21 +2420,21 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
         # self.color_list = ['#192036','#eaa88f', '#8c98a0'] + list(Category20_20)
         self.outputname = outputname
-    def BrinsonHoodBeebower_report(self, display = True, toolbar_location='above'):
+    def BrinsonHoodBeebower_report(self, display = True, toolbar_location='above', excel=False):
         curdoc().clear()
         output_file(self.outputname + '.html')
 
-        data_table_obj = self.get_table_obj()
-        data_alpha_table_obj = self.get_alpha_table_obj()
+        data_table_obj, data_tbl_exl = self.get_table_obj()
+        data_alpha_table_obj, data_alpha_tbl_exl = self.get_alpha_table_obj()
         try:
-            data_table_obj_3Y = self.get_table_obj_3Y()
+            data_table_obj_3Y, _ = self.get_table_obj_3Y()
         except:
-            data_table_obj_3Y = self.get_table_obj_3Y(all_None=True)
+            data_table_obj_3Y, _ = self.get_table_obj_3Y(all_None=True)
 
         try:
-            data_table_obj_5Y = self.get_table_obj_5Y()
+            data_table_obj_5Y,_ = self.get_table_obj_5Y()
         except:
-            data_table_obj_5Y = self.get_table_obj_5Y(all_None=True)
+            data_table_obj_5Y,_ = self.get_table_obj_5Y(all_None=True)
         cmpd_return_TS_obj = self.get_cmpd_rtn_obj(toolbar_location)
         logscale_return_TS_obj = self.get_logscale_rtn_obj(toolbar_location)
         dd_TS_obj = self.get_dd_obj(toolbar_location)
@@ -2457,14 +2456,14 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         stacked_line_obj = self.get_class_stacked_line_obj(toolbar_location)
         mean_donut_obj = self.get_class_holding_mean_donut_obj(toolbar_location)
         BrinsonHoodBeebower_obj = self.BrinsonHoodBeebower_obj(toolbar_location, self.yearly)
-        latest_rebalancing_tbl_obj = self.get_latest_rebalancing_tbl_obj()
+        latest_rebalancing_tbl_obj,latest_rebalancing_tbl_exl = self.get_latest_rebalancing_tbl_obj()
         latest_rebalancing_donut_obj = self.get_latest_rebalancing_donut_obj(toolbar_location)
         latest_rebalancing_rtn_obj = self.get_latestrebal_rtn_obj(toolbar_location)
 
         RebalancingEffect_obj = self.RebalancingEffect_obj(toolbar_location, self.yearly)
-        latest_rebaleffect_tbl_obj = self.get_latest_rebaleffect_tbl_obj()
+        latest_rebaleffect_tbl_obj,latest_rebaleffect_tbl_exl = self.get_latest_rebaleffect_tbl_obj()
         MTD_rtn_obj = self.get_MTD_rtn_obj(toolbar_location)
-        MTD_rtn_tbl_obj = self.get_MTD_rtn_tbl_obj()
+        MTD_rtn_tbl_obj, MTD_rtn_tbl_exl = self.get_MTD_rtn_tbl_obj()
 
         report_title = Div(
             text="""
@@ -2475,6 +2474,14 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
             width=800,
             height=80
         )
+        if excel:
+            with pd.ExcelWriter(self.outputname + '.xlsx') as writer:
+                data_tbl_exl.to_excel(writer, sheet_name='data')
+                data_alpha_tbl_exl.to_excel(writer, sheet_name='data_alpha')
+                latest_rebalancing_tbl_exl.to_excel(writer, sheet_name='latest_rebalancing')
+                latest_rebaleffect_tbl_exl.to_excel(writer, sheet_name='latest_rebaleffect')
+                MTD_rtn_tbl_exl.to_excel(writer, sheet_name='MTD_rtn')
+
         if display == True:
             try:
                 show(
@@ -2626,7 +2633,6 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
                     )
 
                 )
-
 
 
     def get_yearly_tottr_obj(self, toolbar_location, W=1):
@@ -2902,6 +2908,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         data_tmp = self.Port_latest_rebalancing.copy()
         dounut_value = data_tmp[['class', 'today']].groupby('class')['today'].sum().rename('value')
         dounut_data = pd.Series(dounut_value).rename_axis('class').reset_index(name='value')
+        # dounut_data['class'] = dounut_data['class'].astype(str) + ' (' + dounut_data['value'].map('{:.2%}'.format) + ')'
         dounut_data['angle'] = dounut_data['value'].div(dounut_data['value'].sum()) * 2 * np.pi
         dounut_data['color'] = dounut_data['class'].map(self.stacked_line_color_dict)
 
@@ -2915,7 +2922,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
             source = ColumnDataSource(dict(start_angle=[start_angle], end_angle=[end_angle], color=[row['color']], class_name=[row['class']], value=[row['value']]))
             wedge = ClsMean_DN_obj.annular_wedge(x=0, y=1, inner_radius=0.2, outer_radius=0.4,
                                                  start_angle='start_angle', end_angle='end_angle',
-                                                 color='color', legend_label=row['class'],
+                                                 color='color', legend_label=row['class']+f' ({row["value"]:.2%})',
                                                  muted_color='grey', muted_alpha=0.2, source=source)
             start_angle = end_angle
 
@@ -2963,7 +2970,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         layout = column(title_div, data_table_fig)
 
         # show(layout)
-        return layout
+        return layout,static_data
     def get_latest_rebalancing_tbl_obj(self):
         stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-2]:self.B_w_pvt_input.index[-1], self.P_w_pvt_input.iloc[-2].dropna().index]
         stock_class = self.code_to_name.loc[stock_price.columns]
@@ -3046,7 +3053,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         layout = column(title_div, data_table_fig)
 
         # show(layout)
-        return layout
+        return layout,static_data
 
     def get_MTD_rtn_obj_old(self, toolbar_location):
         # Plot 복리
@@ -3138,11 +3145,8 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         # Plot 복리
         stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:,self.P_w_pvt_input.iloc[-1].dropna().index]
         stock_class = self.code_to_name.loc[stock_price.columns]
-
-
         all_classes = list(set(stock_class['class'].drop_duplicates().to_list()+self.B_w_pvt_input.iloc[-1].dropna().index.to_list()))
         index_price = self.Index_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:,all_classes]
-
 
 
         latestrebal_price=pd.concat([stock_price, index_price], axis=1).dropna(how='all', axis=0).dropna(axis=0)
@@ -3279,7 +3283,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         layout = column(title_div, data_table_fig)
 
         # show(layout)
-        return layout
+        return layout,static_data
 
     def get_MTD_rtn_tbl_obj_old(self):
         stock_price = self.Stock_Daily_price_input.loc[self.B_w_pvt_input.index[-1]:, self.P_w_pvt_input.iloc[-1].dropna().index]
@@ -3339,7 +3343,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
 if __name__ == "__main__":
     from tqdm import tqdm
-    data_date = '20240327'
+    data_date = '20240426'
     Hrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='고위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
     Mrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='중위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
     Lrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='저위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
@@ -3368,7 +3372,7 @@ if __name__ == "__main__":
     #               'A308620': '해외채권'}
 
     BM_code_to_index={
-                      'KBPMABIN': '국내채권',
+                      'KBPMABIN Index': '국내채권',
                       "KOSPI Index":'국내주식',
                       'LEGATRUU Index': '해외채권',
                       'RUGL Index':'리츠',
@@ -3378,7 +3382,7 @@ if __name__ == "__main__":
                        # 'NDUEACWF':'해외주식'
                        }
 
-    index_price = pd.read_excel(f'Shinhan_Robost.xlsx', sheet_name='Index', index_col=0, parse_dates=[0]).rename(columns=BM_code_to_index).sort_index()
+    index_price = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='Index', index_col=0, parse_dates=[0]).rename(columns=BM_code_to_index).sort_index()
     index_price['대안자산'] = index_price[['금','리츠']].pct_change().mean(1).fillna(0).add(1).cumprod()
     index_price = index_price.pct_change().add(1).cumprod()
     index_price.iloc[0]=1
@@ -3403,27 +3407,32 @@ if __name__ == "__main__":
     Asset_info['class'] = Asset_info['class1'] + Asset_info['class2']
     # Asset_info_input = Asset_info[['종목코드', '종목명','class']]
     Asset_info_input = Asset_info.set_index('종목코드').loc[list(set(Hrisk_w_pvt_input.columns)|set(Mrisk_w_pvt_input.columns)|set(Lrisk_w_pvt_input.columns))]
-    Asset_info_input.loc['A153130', 'class'] = '국내채권'
-    Asset_info_input.loc['A195920', 'class'] = '선진주식'
-    Asset_info_input.loc['A200250', 'class'] = '신흥주식'
-    Asset_info_input.loc['A272560', 'class'] = '국내채권'
-    Asset_info_input.loc['A273130', 'class'] = '국내채권'
-    Asset_info_input.loc['A329750', 'class'] = '해외채권'
-    Asset_info_input.loc['A411060', 'class'] = '대안자산'
-    Asset_info_input.loc['A437080', 'class'] = '해외채권'
-    Asset_info_input.loc['A452360', 'class'] = '선진주식'
-    Asset_info_input.loc['A455850', 'class'] = '신흥주식'
-    Asset_info_input.loc['A329200', 'class'] = '대안자산'
-    Asset_info_input.loc['A302190', 'class'] = '국내채권'
-    Asset_info_input.loc['A245710', 'class'] = '신흥주식'
-    Asset_info_input.loc['A360750', 'class'] = '선진주식'
+    Asset_info_input.loc['A153130', 'class'] = '국내채권' #KODEX 단기채권
+    Asset_info_input.loc['A195920', 'class'] = '선진주식' #TIGER 일본TOPIX(합성 H)
+    Asset_info_input.loc['A200250', 'class'] = '신흥주식' #KOSEF 인도Nifty50(합성)
+    Asset_info_input.loc['A272560', 'class'] = '국내채권' #KBSTAR 단기국공채액티브
+    Asset_info_input.loc['A273130', 'class'] = '국내채권' #KODEX 종합채권(AA-이상)액티브
+    Asset_info_input.loc['A329750', 'class'] = '해외채권' #TIGER 미국달러단기채권액티브
+    Asset_info_input.loc['A411060', 'class'] = '대안자산' #ACE KRX금현물
+    Asset_info_input.loc['A437080', 'class'] = '해외채권' #KODEX 미국종합채권ESG액티브(H)
+    Asset_info_input.loc['A452360', 'class'] = '선진주식' #SOL 미국배당다우존스(H)
+    Asset_info_input.loc['A455850', 'class'] = '신흥주식' #SOL AI반도체소부장
+    Asset_info_input.loc['A329200', 'class'] = '대안자산' #TIGER 리츠부동산인프라
+    Asset_info_input.loc['A302190', 'class'] = '국내채권' #TIGER 중장기국채
+    Asset_info_input.loc['A245710', 'class'] = '신흥주식' #ACE 베트남VN30(합성)
+    Asset_info_input.loc['A360750', 'class'] = '선진주식' #TIGER 미국S&P500
+    Asset_info_input.loc['A139230', 'class'] = '신흥주식' #TIGER 200 중공업
+    Asset_info_input.loc['A195930', 'class'] = '선진주식' #TIGER 유로스탁스50(합성 H)
+
+
+
     Asset_info_input = Asset_info_input.reset_index()[['종목코드', '종목명', 'class']]
 
 
-    # self=BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname='./LL_risk')
+    # self=BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./H_risk_{data_date}')
     # self.BrinsonHoodBeebower_report()
     # dsadasdsadsa
-    BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./H_risk_{data_date}').BrinsonHoodBeebower_report()
+    BrinsonHoodBeebower_PortfolioAnalysis(Hrisk_w_pvt_input.div(100),HB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./H_risk_{data_date}').BrinsonHoodBeebower_report(excel=True)
     BrinsonHoodBeebower_PortfolioAnalysis(Mrisk_w_pvt_input.div(100),MB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./M_risk_{data_date}').BrinsonHoodBeebower_report()
     BrinsonHoodBeebower_PortfolioAnalysis(Lrisk_w_pvt_input.div(100),LB_w_pvt_input,Asset_info_input,Stock_Daily_price_input,Index_Daily_price_input,yearly=False,outputname=f'./L_risk_{data_date}').BrinsonHoodBeebower_report()
 
