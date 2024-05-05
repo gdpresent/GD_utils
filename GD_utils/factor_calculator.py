@@ -158,7 +158,7 @@ class FactorAnalysis:
 
     def factor_report(self, col_name, drtion, outputname='./UnnamedReport', display=True):
         # col_name, drtion = 'factor', False
-        # col_name, drtion, outputname= 'factor', False, './model05p20_Final'
+        # col_name, drtion, outputname= 'factor', False, './model05_Vcut'
         from bokeh.plotting import output_file, show, curdoc, save
         from bokeh.layouts import column, row
         from bokeh.models import Column
@@ -172,7 +172,7 @@ class FactorAnalysis:
 
         logscale_return_TS_obj = decile_fig.get_logscale_rtn_obj('above')
         CAGR_bar_obj = decile_fig.get_CAGR_bar_obj()
-        inputtable_obj = decile_fig.get_inputtable_obj(metric_table_decile)
+        inputtable_obj,inputtable_data = decile_fig.get_inputtable_obj(metric_table_decile)
 
         # 팩터 top n Portfolios
         top5 = self.get_top_n_result(col_name, drtion, 5).rename('Top 5')
@@ -189,7 +189,7 @@ class FactorAnalysis:
 
         top_n_logscale_return_TS_obj = top_n_fig.get_logscale_rtn_obj('above')
         top_n_dd_TS_obj = top_n_fig.get_dd_obj('above')
-        top_n_table_obj = top_n_fig.get_table_obj()
+        top_n_table_obj, top_n_table_data = top_n_fig.get_table_obj()
 
         if display == True:
             show(column(row(logscale_return_TS_obj, CAGR_bar_obj), Column(inputtable_obj), top_n_logscale_return_TS_obj, top_n_dd_TS_obj,Column(top_n_table_obj)))

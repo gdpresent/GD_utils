@@ -452,8 +452,7 @@ class PortfolioAnalysis:
         pct_display = ['CAGR', 'std', 'MDD', 'Alpha CAGR', 'Tracking Error', 'Hit', 'R-Hit', 'Hit(alpha)', 'R-Hit(alpha)']
         for col in input_tbl.columns:
             if col in pct_display:
-                input_tbl.loc[:, col] = input_tbl.loc[:, col].apply(
-                    lambda x: str(np.around((x * 100), decimals=2)) + "%")
+                input_tbl.loc[:, col] = input_tbl.loc[:, col].apply(lambda x: str(np.around((x * 100), decimals=2)) + "%")
             else:
                 input_tbl.loc[:, col] = input_tbl.loc[:, col].apply(lambda x: np.around(x, decimals=4))
         input_tbl.reset_index(inplace=True)
