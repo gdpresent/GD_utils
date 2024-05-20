@@ -190,8 +190,8 @@ class PortfolioAnalysis:
         curdoc().clear()
         output_file(self.outputname + '.html')
 
-        data_table_obj = self.get_table_obj(_width=1500)
-        data_alpha_table_obj = self.get_alpha_table_obj(_width=1500)
+        data_table_obj,data_table_data = self.get_table_obj(_width=1500)
+        data_alpha_table_obj,data_alpha_table_data = self.get_alpha_table_obj(_width=1500)
         cmpd_return_TS_obj = self.get_cmpd_rtn_obj(toolbar_location)
         logscale_return_TS_obj = self.get_logscale_rtn_obj(toolbar_location)
         dd_TS_obj = self.get_dd_obj(toolbar_location)
@@ -3342,7 +3342,8 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
 if __name__ == "__main__":
     from tqdm import tqdm
-    data_date = '20240426'
+    data_date = '20240506'
+    print(f'{data_date}\n'*10)
     Hrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='고위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
     Mrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='중위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
     Lrisk_w_pvt_input = pd.read_excel(f'Shinhan_Robost_{data_date}.xlsx', sheet_name='저위험',index_col=0,parse_dates=[0]).rename_axis('date', axis=0).rename_axis('code', axis=1)
@@ -3422,6 +3423,11 @@ if __name__ == "__main__":
     Asset_info_input.loc['A360750', 'class'] = '선진주식' #TIGER 미국S&P500
     Asset_info_input.loc['A139230', 'class'] = '신흥주식' #TIGER 200 중공업
     Asset_info_input.loc['A195930', 'class'] = '선진주식' #TIGER 유로스탁스50(합성 H)
+    #2024-05-02
+    Asset_info_input.loc['A442320', 'class'] = '선진주식' #KBSTAR 글로벌원자력iSelect
+    Asset_info_input.loc['A438330', 'class'] = '국내채권' #TIGER 투자등급회사채액티브
+    Asset_info_input.loc['A160580', 'class'] = '대안자산' #TIGER 구리실물
+    Asset_info_input.loc['A219390', 'class'] = '대안자산' #KBSTAR 미국S&P원유생산기업(합성 H)
 
 
 
