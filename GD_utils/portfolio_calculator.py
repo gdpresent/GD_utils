@@ -25,6 +25,7 @@ class PortfolioAnalysis:
         # 포트폴리오 복리수익률
         self.cum_ret_cmpd = self.daily_return.add(1).cumprod()
         self.cum_ret_cmpd.iloc[0] = 1
+
         # 포트폴리오 단리수익률
         self.cum_ret_smpl = self.daily_return.cumsum()
         # 분석 기간
@@ -478,6 +479,7 @@ class PortfolioAnalysis:
         return return_TS_obj
     def get_cmpd_rtn_obj(self, toolbar_location):
         # Plot 복리
+        self.cum_ret_cmpd.index.name='date'
         source_for_chart = self.to_source(self.cum_ret_cmpd - 1)
         return_TS_obj = figure(x_axis_type='datetime',
                                title='Cumulative Return' + f'({self.cum_ret_cmpd.index[0].strftime("%Y-%m-%d")} ~ {self.cum_ret_cmpd.index[-1].strftime("%Y-%m-%d")})',
@@ -507,9 +509,9 @@ class PortfolioAnalysis:
 
         return_TS_lgd_list = []
         for i, col in enumerate(self.cum_ret_cmpd.columns):
-            return_TS_line = return_TS_obj.line(source=source_for_chart, x=self.cum_ret_cmpd.index.name, y=col,
-                                                color=self.color_list[i], line_width=2)
+            return_TS_line = return_TS_obj.line(source=source_for_chart, x=self.cum_ret_cmpd.index.name, y=col, color=self.color_list[i], line_width=2)
             return_TS_lgd_list.append((col, [return_TS_line]))
+
         return_TS_lgd = Legend(items=return_TS_lgd_list, location='center')
         return_TS_obj.add_layout(return_TS_lgd, 'right')
         return_TS_obj.legend.click_policy = "mute"
@@ -2419,7 +2421,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
         # self.color_list = ['#192036','#eaa88f', '#8c98a0'] + list(Category20_20)
         self.outputname = outputname
-    def BrinsonHoodBeebower_report(self, display = True, toolbar_location='above', excel=False):
+    def BrinsonHoodBeebower_report(self, display=True, toolbar_location='above', excel=False):
         curdoc().clear()
         output_file(self.outputname + '.html')
 
@@ -3496,7 +3498,7 @@ if __name__ == "__main__":
     #     price_df = pd.concat([price_df, tmp], axis=1)
     # price_df = price_df.loc[:"2022-12"]
     # gdu.data = price_df.copy()
-    #
+
     # Asset_info = pd.read_excel(f'./ETF_test.xlsx', sheet_name='표1')[['단축코드', '기초시장분류', '기초자산분류']]
     # Asset_info.columns = ['code', 'class1', 'class2']
     # Asset_info['code'] = Asset_info['code'].astype(str).apply(lambda x: 'A'+'0'*(6-len(x))+x)
