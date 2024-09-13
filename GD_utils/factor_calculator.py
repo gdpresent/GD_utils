@@ -175,6 +175,8 @@ class FactorAnalysis:
         inputtable_obj,inputtable_data = decile_fig.get_inputtable_obj(metric_table_decile)
 
         # 팩터 top n Portfolios
+        top1 = self.get_top_n_result(col_name, drtion, 1).rename('Top 1')
+        top3 = self.get_top_n_result(col_name, drtion, 3).rename('Top 3')
         top5 = self.get_top_n_result(col_name, drtion, 5).rename('Top 5')
         top10 = self.get_top_n_result(col_name, drtion, 10).rename('Top 10')
         top20 = self.get_top_n_result(col_name, drtion, 20).rename('Top 20')
@@ -183,7 +185,7 @@ class FactorAnalysis:
         # btm10 = self.get_top_n_result(col_name, not drtion, 10).rename('Bottom 10')
         # btm20 = self.get_top_n_result(col_name, not drtion, 20).rename('Bottom 20')
 
-        top_n_df = pd.concat([top5, top10, top20,self._BM_data], axis=1).dropna()
+        top_n_df = pd.concat([top1, top3,top5, top10, top20,self._BM_data], axis=1).dropna()
         # top_n_df = pd.concat([top5, top10, top20, btm5, btm10, btm20,self._BM_data], axis=1).dropna()
         top_n_fig = PortfolioAnalysis(top_n_df.pct_change().fillna(0), last_BM=True)
 

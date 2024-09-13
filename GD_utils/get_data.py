@@ -803,14 +803,52 @@ def get_economic_schedule(date_target=None):
     else:
         output=pd.DataFrame()
     return output
+def get_SNP500_stock_list():
+    url = "https://www.hankyung.com/globalmarket/usa-stock-sp500"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+    }
+    response = requests.get(url, headers=headers)
 
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        table = soup.find('table', {'class': 'table-stock table-usa-market'})
 
+        data = []
+        headers = []
 
+        if table:
+            thead = table.find('thead')
+            for th in thead.find_all('th'):
+                headers.append(th.text.strip())
+
+            tbody = table.find('tbody')
+            for row in tbody.find_all('tr'):
+                cells = row.find_all('td')
+                if cells:
+                    tmp = flatten([cell.text.strip().replace('\n\n', '\n').split('\n') for cell in cells][:-1])
+                    ##
+                    tmp = tmp[:2]
+                    data.append(tmp)
+
+            # col=['종목명', 'ticker', '시세', '등락', '등락률', '거래량','거래대금','시가총액(백만USD)']
+            cols = ['종목명', 'ticker']
+            df = pd.DataFrame(data, columns=cols)
+        else:
+            print("테이블을 찾지 못했습니다.")
+    else:
+        print(f"페이지를 불러오지 못했습니다. 상태 코드: {response.status_code}")
+    return df
+def flatten(lst):
+    flat_list = []
+    for item in lst:
+        if isinstance(item, list):
+            flat_list.extend(flatten(item))
+        else:
+            flat_list.append(item)
+    return flat_list
 if __name__ == "__main__":
     pass
 
-    # today = pd.Timestamp.today().strftime("%Y%m%d")
-    #
-    # US_macro = get_US_macro_except_cif()
-    # KR_macro = get_KRmacro_data('Z034ROZNL01ZJFFCB3K0')
-    # export=get_Export_PublicDataPortal('Z7AubMAAhdoq2sLF3JiHlGXoJfjBedvBF%2BvmPH20t3wlWI6lVbcot1gPZPkI6nuP6vkJywAkQV5tmcfkNS3JYw%3D%3D')
+    # AA=get_SNP500_stock_list()
+    # AA.to_excel('./SNP500_constituent_20240913.xlsx')

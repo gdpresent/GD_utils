@@ -25,6 +25,7 @@ class PortfolioAnalysis:
         # 포트폴리오 복리수익률
         self.cum_ret_cmpd = self.daily_return.add(1).cumprod()
         self.cum_ret_cmpd.iloc[0] = 1
+        self.cum_ret_cmpd = self.cum_ret_cmpd.rename_axis('date')
 
         # 포트폴리오 단리수익률
         self.cum_ret_smpl = self.daily_return.cumsum()
