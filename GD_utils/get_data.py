@@ -109,9 +109,16 @@ def get_KR_ETF_list():
     return output
 
 # 야후 수정주가 가져오기
-def get_all_yahoo_data_old(name):
-    return pdr.get_data_yahoo(name, start='1971-01-01').rename_axis('date', axis=0).sort_index()
-def get_all_yahoo_data(name, stt='1927-12-30'):
+import multitasking
+max_threads = multitasking.cpu_count() * 2  # CPU 코어 수의 두 배로 설정
+def get_all_yahoo_data(name, stt='1927-12-30', max_threads=True):
+    # return pdr.get_data_yahoo(name, start='1971-01-01').rename_axis('date', axis=0).sort_index()
+    if max_threads:
+        return yf.download(name,start=stt,progress=False,threads=max_threads).rename_axis('date', axis=0).sort_index()
+    else:
+        return yf.download(name,start=stt,progress=False).rename_axis('date', axis=0).sort_index()
+
+def Ver_old_get_all_yahoo_data(name, stt='1927-12-30'):
     def unix_date(date):
         epoch = datetime(1970, 1, 1)  # 유닉스 기준일
         t = datetime.strptime(date, '%Y-%m-%d')
@@ -124,6 +131,7 @@ def get_all_yahoo_data(name, stt='1927-12-30'):
     df = pd.read_csv(url, parse_dates=True, index_col='Date').rename_axis('date', axis=0).sort_index()
     # pdr.data.get_data_yahoo(name, start='1920-01-01')
     return df
+
 def get_data_yahoo_close(symbols, stt='1927-12-30'):
     if type(symbols) ==str:
         df = get_all_yahoo_data(symbols, stt)[['Adj Close']].rename(columns={'Adj Close':symbols})
