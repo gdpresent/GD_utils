@@ -3235,10 +3235,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         MTD_contribution.loc['sum']=""
         MTD_contribution.loc['sum', 'MTD기여도'] =ret_cntrbtn
 
-
         static_data_tmp = pd.concat([MTD_contribution, BM_info], axis=0).reset_index(drop=True)
-
-
 
         static_data_tmp['today'] = static_data_tmp['today'].map(lambda x: str(np.int64(x * 10000) / 100) + "%" if type(x) != str else x)
         static_data_tmp['MTD기여도'] = static_data_tmp['MTD기여도'].map(lambda x: str(int(x * 10000) / 100) + "%" if type(x) != str else x)
