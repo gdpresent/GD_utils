@@ -2291,7 +2291,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         """
         # P_w_pvt_input,B_w_pvt_input = Hrisk_w_pvt_input.div(100).copy(), HB_w_pvt_input.copy()
         self.Stock_Daily_price_input, self.Index_Daily_price_input=Stock_Daily_price_input.copy(),Index_Daily_price_input.copy()
-        gdu.data = pd.concat([self.Stock_Daily_price_input,self.Index_Daily_price_input], axis=1)
+        gdu.data = pd.concat([self.Stock_Daily_price_input,self.Index_Daily_price_input[self.Index_Daily_price_input.columns[~self.Index_Daily_price_input.columns.isin(self.Stock_Daily_price_input.columns)]]], axis=1)
         self.code_to_name = Asset_info_input.set_index('종목코드')[['종목명','class']]
         self.P_w_pvt_input, self.B_w_pvt_input = P_w_pvt_input.copy(),B_w_pvt_input.copy()
 
