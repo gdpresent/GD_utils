@@ -2881,6 +2881,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         return return_TS_obj
     def get_class_holding_mean_donut_obj(self, toolbar_location):
         dounut_value = self.Port_daily_account_ratio_class_mean.copy()
+        dounut_value = dounut_value[dounut_value>0]
 
         # 데이터 준비
         dounut_data = pd.Series(dounut_value).rename_axis('class').reset_index(name='value')
