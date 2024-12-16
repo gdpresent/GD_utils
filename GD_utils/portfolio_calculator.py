@@ -2716,7 +2716,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         else:
             input_Data = input_Data.groupby(pd.Grouper(freq='M')).mean()
             input_Data.index = input_Data.index.strftime("%Y-%m")
-
+        input_Data=input_Data.rename_axis('date')
         cr_list = ['#D5DBDB']+list(HighContrast3)
 
         BF_obj = figure(x_range=FactorRange(*input_Data.index), title="Brinson-Hood-Beebower Analysis", width=1500, height=500, toolbar_location=toolbar_location)
