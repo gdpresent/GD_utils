@@ -1,4 +1,5 @@
 import pandas_datareader as pdr
+from pykrx import stock
 from datetime import datetime
 import requests
 import pandas as pd
@@ -107,6 +108,25 @@ def get_KR_ETF_list():
               }
     output = output.rename(columns=col_name)
     return output
+
+# 국내 주식 목록
+def get_KR_STK_list(biz_day=None):
+    import FinanceDataReader as fdr
+    output=fdr.StockListing('KRX')
+    name_dict = {
+                 'Code':'종목코드',
+                 'Name':'종목명',
+                 'Market':'시장구분',
+                 'Close':'종가',
+                 'Open':'시가',
+                 'High':'고가',
+                 'Low':'저가',
+                 'Volume':'거래량',
+                 'Amount':'거래대금',
+                 'Marcap':'시가총액',
+                 'Stocks':'상장주식수'
+                 }
+    return output.rename(columns=name_dict)
 
 # 야후 수정주가 가져오기
 import multitasking

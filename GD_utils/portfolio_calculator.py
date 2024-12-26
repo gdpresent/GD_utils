@@ -2712,10 +2712,12 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
         input_Data=self.decompose_allocation_effect
 
         if Yearly:
-            input_Data = input_Data.groupby(pd.Grouper(freq='Y')).mean()
+            # input_Data = input_Data.groupby(pd.Grouper(freq='Y')).mean()
+            input_Data = input_Data.add(1).groupby(pd.Grouper(freq='Y')).prod().sub(1)
             input_Data.index = input_Data.index.strftime("%Y")
         else:
-            input_Data = input_Data.groupby(pd.Grouper(freq='M')).mean()
+            # input_Data = input_Data.groupby(pd.Grouper(freq='M')).mean()
+            input_Data = input_Data.add(1).groupby(pd.Grouper(freq='M')).prod().sub(1)
             input_Data.index = input_Data.index.strftime("%Y-%m")
         input_Data=input_Data.rename_axis('date')
         cr_list = ['#D5DBDB']+list(HighContrast3)
