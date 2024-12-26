@@ -24,7 +24,7 @@ class FactorAnalysis:
             n_q = n_q.stack().reset_index('종목코드').assign(w=lambda x: x.groupby('date')['종목코드'].count().rdiv(1)).pivot(columns='종목코드', values='w').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
             port_calc = return_calculator(n_q, self.cost)
-            cum_rnt_df[f'P{i + 1}'] = port_calc.backtest_cumulative_return
+            cum_rnt_df[f'P{i + 1}'] = port_calc.portfolio_cumulative_return
 
         IC_df = cum_rnt_df.iloc[-1].rank(ascending=False, method='first').reset_index()
         IC_df['index'] = IC_df['index'].str[1:].astype(int)
@@ -50,7 +50,7 @@ class FactorAnalysis:
 
 
             port_calc = return_calculator(n_q, self.cost)
-            cum_rnt_df[f'P{i + 1}'] = port_calc.backtest_cumulative_return
+            cum_rnt_df[f'P{i + 1}'] = port_calc.portfolio_cumulative_return
 
         IC_df = cum_rnt_df.iloc[-1].rank(ascending=False, method='first').reset_index()
         IC_df['index'] = IC_df['index'].str[1:].astype(int)
@@ -81,7 +81,7 @@ class FactorAnalysis:
             n_q = n_q.stack().reset_index('종목코드').assign(w=lambda x: x.groupby('date')['종목코드'].count().rdiv(1)).pivot(columns='종목코드', values='w').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
             port_calc = return_calculator(n_q, self.cost)
-            cum_rnt_df[f'P{i + 1}'] = port_calc.backtest_cumulative_return
+            cum_rnt_df[f'P{i + 1}'] = port_calc.portfolio_cumulative_return
 
         IC_df = cum_rnt_df.iloc[-1].rank(ascending=False, method='first').reset_index()
         IC_df['index'] = IC_df['index'].str[1:].astype(int)
@@ -104,7 +104,7 @@ class FactorAnalysis:
         w_df = w_df.multiply(1 / w_df.sum(1), axis='index').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
         port_calc = return_calculator(w_df, self.cost)
-        return port_calc.backtest_cumulative_return
+        return port_calc.portfolio_cumulative_return
     def get_three_factor_top_n_result(self,col_name1,drtion1,col_name2,drtion2,col_name3,drtion3,n):
         # col_name, drtion, n = '매출총이익_매출액', False, 10
         df_to_calc = self._df[['date', '종목코드', col_name1, col_name2, col_name3]].copy()
@@ -117,7 +117,7 @@ class FactorAnalysis:
         w_df = w_df.multiply(1 / w_df.sum(1), axis='index').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
         port_calc = return_calculator(w_df, self.cost)
-        return port_calc.backtest_cumulative_return
+        return port_calc.portfolio_cumulative_return
     def get_table(self, cum_rnt_ts):
         cum_rnt_ts['시장수익률'] = self._BM_data
         cum_rnt_ts = cum_rnt_ts / cum_rnt_ts.iloc[0]
@@ -143,20 +143,22 @@ class FactorAnalysis:
         output_df['IR'] = Active_Calc.cagr / Active_Calc.std
 
         def calc_monthly_hit(df):
-            return (df.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)) > 1).agg(
-                [sum, len]).T.assign(win=lambda x: x['sum'] / x['len'])['win']
+            return (df.add(1).groupby(pd.Grouper(freq='BM')).apply(lambda x: x.cumprod().tail(1)) > 1).agg([sum, len]).T.assign(win=lambda x: x['sum'] / x['len'])['win']
         def calc_rolling1Y_hit(df):
-            return (df.add(1).cumprod().pct_change(250).dropna(axis=0) > 0).agg([sum, len]).T.assign(
-                win=lambda x: x['sum'] / x['len'])['win']
+            return (df.add(1).cumprod().pct_change(250).dropna(axis=0) > 0).agg([sum, len]).T.assign(win=lambda x: x['sum'] / x['len'])['win']
 
         output_df['Hit'] = calc_monthly_hit(return_daily)
-        output_df['R-Hit'] = calc_rolling1Y_hit(return_daily)
         output_df['Hit(alpha)'] = calc_monthly_hit(alpha_daily)
-        output_df['R-Hit(alpha)'] = calc_rolling1Y_hit(alpha_daily)
+        try:
+            output_df['R-Hit'] = calc_rolling1Y_hit(return_daily)
+            output_df['R-Hit(alpha)'] = calc_rolling1Y_hit(alpha_daily)
+        except:
+            pass
         return output_df
 
     def factor_report(self, col_name, drtion, outputname='./UnnamedReport', display=True):
-        # col_name, drtion = '매출총이익_매출액', False
+        # col_name, drtion = 'factor', False
+        # col_name, drtion, outputname= 'factor', False, './model05_Vcut'
         from bokeh.plotting import output_file, show, curdoc, save
         from bokeh.layouts import column, row
         from bokeh.models import Column
@@ -170,18 +172,26 @@ class FactorAnalysis:
 
         logscale_return_TS_obj = decile_fig.get_logscale_rtn_obj('above')
         CAGR_bar_obj = decile_fig.get_CAGR_bar_obj()
-        inputtable_obj = decile_fig.get_inputtable_obj(metric_table_decile)
+        inputtable_obj,inputtable_data = decile_fig.get_inputtable_obj(metric_table_decile)
 
         # 팩터 top n Portfolios
+        top1 = self.get_top_n_result(col_name, drtion, 1).rename('Top 1')
+        top3 = self.get_top_n_result(col_name, drtion, 3).rename('Top 3')
         top5 = self.get_top_n_result(col_name, drtion, 5).rename('Top 5')
         top10 = self.get_top_n_result(col_name, drtion, 10).rename('Top 10')
         top20 = self.get_top_n_result(col_name, drtion, 20).rename('Top 20')
-        top_n_df = pd.concat([top5, top10, top20, self._BM_data], axis=1).dropna()
+
+        # btm5 = self.get_top_n_result(col_name, not drtion, 5).rename('Bottom 5')
+        # btm10 = self.get_top_n_result(col_name, not drtion, 10).rename('Bottom 10')
+        # btm20 = self.get_top_n_result(col_name, not drtion, 20).rename('Bottom 20')
+
+        top_n_df = pd.concat([top1, top3,top5, top10, top20,self._BM_data], axis=1).dropna()
+        # top_n_df = pd.concat([top5, top10, top20, btm5, btm10, btm20,self._BM_data], axis=1).dropna()
         top_n_fig = PortfolioAnalysis(top_n_df.pct_change().fillna(0), last_BM=True)
 
         top_n_logscale_return_TS_obj = top_n_fig.get_logscale_rtn_obj('above')
         top_n_dd_TS_obj = top_n_fig.get_dd_obj('above')
-        top_n_table_obj = top_n_fig.get_table_obj()
+        top_n_table_obj, top_n_table_data = top_n_fig.get_table_obj()
 
         if display == True:
             show(column(row(logscale_return_TS_obj, CAGR_bar_obj), Column(inputtable_obj), top_n_logscale_return_TS_obj, top_n_dd_TS_obj,Column(top_n_table_obj)))
@@ -319,7 +329,7 @@ class FactorAnalysis_4Universes:
                 n_q = n_q.stack().reset_index('종목코드').assign(w=lambda x: x.groupby('date')['종목코드'].count().rdiv(1)).pivot(columns='종목코드', values='w').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
                 port_calc = return_calculator(n_q, self.cost)
-                cum_rnt_df[f'P{i + 1}'] = port_calc.backtest_cumulative_return
+                cum_rnt_df[f'P{i + 1}'] = port_calc.portfolio_cumulative_return
             IC_df = cum_rnt_df.iloc[-1].rank(ascending=False, method='first').reset_index()
             IC_df['index'] = IC_df['index'].str[1:].astype(int)
             IC_df.columns = ['tile',col_name]
@@ -357,7 +367,7 @@ class FactorAnalysis_4Universes:
             n_q = n_q.stack().reset_index('종목코드').assign(w=lambda x: x.groupby('date')['종목코드'].count().rdiv(1)).pivot(columns='종목코드', values='w').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
             port_calc = return_calculator(n_q, self.cost)
-            cum_rnt_df[f'P{i + 1}'] = port_calc.backtest_cumulative_return
+            cum_rnt_df[f'P{i + 1}'] = port_calc.portfolio_cumulative_return
 
         IC_df = cum_rnt_df.iloc[-1].rank(ascending=False, method='first').reset_index()
         IC_df['index'] = IC_df['index'].str[1:].astype(int)
@@ -380,7 +390,7 @@ class FactorAnalysis_4Universes:
         w_df = w_df.multiply(1 / w_df.sum(1), axis='index').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
         port_calc = return_calculator(w_df, self.cost)
-        return port_calc.backtest_cumulative_return
+        return port_calc.portfolio_cumulative_return
     def get_three_factor_top_n_result(self,col_name1,drtion1,col_name2,drtion2,col_name3,drtion3,n):
         # col_name, drtion, n = '매출총이익_매출액', False, 10
 
@@ -400,7 +410,7 @@ class FactorAnalysis_4Universes:
         w_df = w_df.multiply(1 / w_df.sum(1), axis='index').dropna(axis=1, how='all').dropna(axis=0, how='all').fillna(0)
 
         port_calc = return_calculator(w_df, self.cost)
-        return port_calc.backtest_cumulative_return
+        return port_calc.portfolio_cumulative_return
     def get_table(self, cum_rnt_ts):
         cum_rnt_ts['시장수익률'] = self._BM_data
         cum_rnt_ts = cum_rnt_ts / cum_rnt_ts.iloc[0]
@@ -581,7 +591,7 @@ class FactorAnalysis_4Universes:
 
 
             port_calc = return_calculator(n_q, self.cost)
-            cum_rnt_df[f'P{i + 1}'] = port_calc.backtest_cumulative_return
+            cum_rnt_df[f'P{i + 1}'] = port_calc.portfolio_cumulative_return
 
         IC_df = cum_rnt_df.iloc[-1].rank(ascending=False, method='first').reset_index()
         IC_df['index'] = IC_df['index'].str[1:].astype(int)

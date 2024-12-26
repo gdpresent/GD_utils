@@ -6,12 +6,44 @@ from bs4 import BeautifulSoup
 from tqdm import tqdm
 import time
 import yfinance as yf
+import json
+import urllib.request
 yf.pdr_override()
 
 # 네이버 차트에서 수정주가(종가, 시가)
 def get_data_naver(company_code):
     # count=3000에서 3000은 과거 3,000 영업일간의 데이터를 의미. 사용자가 조절 가능
     url = "https://fchart.stock.naver.com/sise.nhn?symbol={}&timeframe=day&count=3000000&requestType=0".format(company_code)
+    get_result = requests.get(url)
+    bs_obj = BeautifulSoup(get_result.content, "html.parser")
+
+    # information
+    inf = bs_obj.select('item')
+    columns = ['date', 'Open', 'High', 'Low', 'Close', 'Volume']
+    df_inf = pd.DataFrame([], columns=columns, index=range(len(inf)))
+
+    for i in range(len(inf)):
+        df_inf.iloc[i] = str(inf[i]['data']).split('|')
+    df_inf.index = pd.to_datetime(df_inf['date'])
+    return df_inf.drop('date', axis=1).astype(float)
+def get_data_naver_1Y(company_code):
+    # count=3000에서 3000은 과거 3,000 영업일간의 데이터를 의미. 사용자가 조절 가능
+    url = "https://fchart.stock.naver.com/sise.nhn?symbol={}&timeframe=day&count=300&requestType=0".format(company_code)
+    get_result = requests.get(url)
+    bs_obj = BeautifulSoup(get_result.content, "html.parser")
+
+    # information
+    inf = bs_obj.select('item')
+    columns = ['date', 'Open', 'High', 'Low', 'Close', 'Volume']
+    df_inf = pd.DataFrame([], columns=columns, index=range(len(inf)))
+
+    for i in range(len(inf)):
+        df_inf.iloc[i] = str(inf[i]['data']).split('|')
+    df_inf.index = pd.to_datetime(df_inf['date'])
+    return df_inf.drop('date', axis=1).astype(float)
+def get_data_naver_Ndays(company_code,Ndays):
+    # count=3000에서 3000은 과거 3,000 영업일간의 데이터를 의미. 사용자가 조절 가능
+    url = f"https://fchart.stock.naver.com/sise.nhn?symbol={company_code}&timeframe=day&count={Ndays}&requestType=0"
     get_result = requests.get(url)
     bs_obj = BeautifulSoup(get_result.content, "html.parser")
 
@@ -53,11 +85,40 @@ def get_naver_close(company_codes):
             output = pd.concat([output, df[[company_code]]], axis=1)
     return output
 
+# 국내 ETF 목록
+def get_KR_ETF_list():
+    url = 'https://finance.naver.com/api/sise/etfItemList.nhn'
+    raw_data = urllib.request.urlopen(url).read().decode('CP949')
+    json_data = json.loads(raw_data)
+    json_data['resultCode']
+
+    output=pd.DataFrame(json_data['result']['etfItemList'])
+    col_name={'itemcode':'종목코드',
+              'etfTabCode':'ETF코드',
+              'itemname':'종목명',
+              'nowVal':'현재가',
+              'changeVal':'전일비',
+              'changeRate':'등락률',
+              'nav':'NAV',
+              'threeMonthEarnRate':'3개월수익률',
+              'quant':'거래량',
+              'amonut':'거래대금',
+              'marketSum':'시가총액',
+              }
+    output = output.rename(columns=col_name)
+    return output
 
 # 야후 수정주가 가져오기
-def get_all_yahoo_data_old(name):
-    return pdr.get_data_yahoo(name, start='1971-01-01').rename_axis('date', axis=0).sort_index()
-def get_all_yahoo_data(name, stt='1927-12-30'):
+import multitasking
+max_threads = multitasking.cpu_count() * 2  # CPU 코어 수의 두 배로 설정
+def get_all_yahoo_data(name, stt='1927-12-30', max_threads=True):
+    # return pdr.get_data_yahoo(name, start='1971-01-01').rename_axis('date', axis=0).sort_index()
+    if max_threads:
+        return yf.download(name,start=stt,progress=False,threads=max_threads).rename_axis('date', axis=0).sort_index()
+    else:
+        return yf.download(name,start=stt,progress=False).rename_axis('date', axis=0).sort_index()
+
+def Ver_old_get_all_yahoo_data(name, stt='1927-12-30'):
     def unix_date(date):
         epoch = datetime(1970, 1, 1)  # 유닉스 기준일
         t = datetime.strptime(date, '%Y-%m-%d')
@@ -70,6 +131,7 @@ def get_all_yahoo_data(name, stt='1927-12-30'):
     df = pd.read_csv(url, parse_dates=True, index_col='Date').rename_axis('date', axis=0).sort_index()
     # pdr.data.get_data_yahoo(name, start='1920-01-01')
     return df
+
 def get_data_yahoo_close(symbols, stt='1927-12-30'):
     if type(symbols) ==str:
         df = get_all_yahoo_data(symbols, stt)[['Adj Close']].rename(columns={'Adj Close':symbols})
@@ -749,14 +811,52 @@ def get_economic_schedule(date_target=None):
     else:
         output=pd.DataFrame()
     return output
+def get_SNP500_stock_list():
+    url = "https://www.hankyung.com/globalmarket/usa-stock-sp500"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+    }
+    response = requests.get(url, headers=headers)
 
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        table = soup.find('table', {'class': 'table-stock table-usa-market'})
 
+        data = []
+        headers = []
 
+        if table:
+            thead = table.find('thead')
+            for th in thead.find_all('th'):
+                headers.append(th.text.strip())
+
+            tbody = table.find('tbody')
+            for row in tbody.find_all('tr'):
+                cells = row.find_all('td')
+                if cells:
+                    tmp = flatten([cell.text.strip().replace('\n\n', '\n').split('\n') for cell in cells][:-1])
+                    ##
+                    tmp = tmp[:2]
+                    data.append(tmp)
+
+            # col=['종목명', 'ticker', '시세', '등락', '등락률', '거래량','거래대금','시가총액(백만USD)']
+            cols = ['종목명', 'ticker']
+            df = pd.DataFrame(data, columns=cols)
+        else:
+            print("테이블을 찾지 못했습니다.")
+    else:
+        print(f"페이지를 불러오지 못했습니다. 상태 코드: {response.status_code}")
+    return df
+def flatten(lst):
+    flat_list = []
+    for item in lst:
+        if isinstance(item, list):
+            flat_list.extend(flatten(item))
+        else:
+            flat_list.append(item)
+    return flat_list
 if __name__ == "__main__":
     pass
 
-    # today = pd.Timestamp.today().strftime("%Y%m%d")
-    #
-    # US_macro = get_US_macro_except_cif()
-    # KR_macro = get_KRmacro_data('Z034ROZNL01ZJFFCB3K0')
-    # export=get_Export_PublicDataPortal('Z7AubMAAhdoq2sLF3JiHlGXoJfjBedvBF%2BvmPH20t3wlWI6lVbcot1gPZPkI6nuP6vkJywAkQV5tmcfkNS3JYw%3D%3D')
+    # AA=get_SNP500_stock_list()
+    # AA.to_excel('./SNP500_constituent_20240913.xlsx')

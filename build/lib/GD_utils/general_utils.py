@@ -5,14 +5,31 @@ import time
 import requests
 from bs4 import BeautifulSoup
 
-def data_preprocessing(data, univ=[]):
+
+def QuantiWise_data_preprocessing(data, univ=[]):
     data.columns = data.iloc[6]
     data = data.drop(range(0, 13), axis=0)
-    data = data.rename(columns={'Code':'date'}).rename_axis("종목코드", axis="columns").set_index('date')
+    data = data.rename(columns={'Code': 'date'}).rename_axis("종목코드", axis="columns").set_index('date')
     data.index = pd.to_datetime(data.index)
-    if len(univ)!=0:
+    if len(univ) != 0:
         data = data[univ]
     return data
+# def data_preprocessing(data, univ=[]):
+#     data.columns = data.iloc[6]
+#     data = data.drop(range(0, 13), axis=0)
+#     data = data.rename(columns={'Code':'date'}).rename_axis("종목코드", axis="columns").set_index('date')
+#     data.index = pd.to_datetime(data.index)
+#     if len(univ)!=0:
+#         data = data[univ]
+#     return data
+def Refinitiv_data_preprocessing(self, pvt_tmp):
+    # pvt_tmp=o_pvt_raw.copy()
+    pvt_tmp.index = pd.to_datetime(pvt_tmp.index)
+    pvt_tmp = pvt_tmp.drop(pvt_tmp.iloc[0][pvt_tmp.iloc[0].apply(lambda x: type(x)==str)].index, axis=1)
+    pvt_tmp = pvt_tmp[pvt_tmp.columns[~pvt_tmp.columns.isna()]]
+    pvt_tmp = pvt_tmp.dropna(how='all', axis=0).dropna(how='all', axis=1)
+    return pvt_tmp
+
 def read_gzip_pickle(location):
     start = time.time() # 시작 시간 저장
     with gzip.open(location, 'rb') as l:
