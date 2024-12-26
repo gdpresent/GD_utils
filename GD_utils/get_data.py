@@ -111,6 +111,7 @@ def get_KR_ETF_list():
 
 # 국내 주식 목록
 def get_KR_STK_list(biz_day=None):
+    # !pip install -U finance-datareader
     import FinanceDataReader as fdr
     output=fdr.StockListing('KRX')
     name_dict = {
