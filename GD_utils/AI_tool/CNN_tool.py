@@ -155,6 +155,23 @@ def process_imaging(params):
     img = convert_ohlcv_to_image(input_df, image_size_dict[day_type][0], image_size_dict[day_type][1])
     return img, code, end_dt.strftime("%Y%m%d"), label
 
+
+def inference_result_save(pred1, test_code, test_date, test_return, test_label, epoches):
+    return pd.DataFrame(
+        {
+         "Prob_Positive": pred1,
+         "종목코드": test_code,
+         "return": test_return,
+         "label": test_label,
+         "epoch": epoches
+         }, index=pd.to_datetime(test_date)).rename_axis("date").sort_index()
+def get_inference_result(model_pth, history_pth, test_DL, criterion, device):
+    model_trained, history, Tacc, Vacc, Teps = get_d05_model_and_history(model_pth, history_pth, device)
+    avg_loss, preds_tmp, codes, dates, returns, labels = eval_loop(test_DL, model_trained, criterion, device)
+    one_preds_1 = torch.nn.Softmax(dim=1)(preds_tmp)[:, 1].cpu().numpy()
+    inference_result = inference_result_save(one_preds_1, codes, dates, returns, labels, Teps)
+    return inference_result
+
 class baseline_CNN_20day(nn.Module):
     def init_weights(self, m):
         if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
@@ -171,13 +188,13 @@ class baseline_CNN_20day(nn.Module):
             nn.MaxPool2d(2, 1))
         self.conv1.apply(self.init_weights)
 
-        self.conv2 = nn.Sequential(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(5,3), padding=(3, 1)),
+        self.conv2 = nn.Sequential(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(5, 3), padding=(3, 1)),
                                    nn.BatchNorm2d(128),
                                    nn.LeakyReLU(),
                                    nn.MaxPool2d(2, 1))
         self.conv2.apply(self.init_weights)
 
-        self.conv3 = nn.Sequential(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(5,3), padding=(2, 1)),
+        self.conv3 = nn.Sequential(nn.Conv2d(in_channels=128, out_channels=256, kernel_size=(5, 3), padding=(2, 1)),
                                    nn.BatchNorm2d(256),
                                    nn.LeakyReLU(),
                                    nn.MaxPool2d(2, 1))
@@ -199,24 +216,27 @@ class baseline_CNN_5day(nn.Module):
         if isinstance(m, nn.Linear) or isinstance(m, nn.Conv2d):
             torch.nn.init.xavier_uniform_(m.weight)  # underscore 추가
             m.bias.data.fill_(0.01)
+
     def __init__(self, dr_rate=0.5, stt_chnl=3):
         super().__init__()
-        self.conv1 = nn.Sequential(nn.Conv2d(in_channels=stt_chnl, out_channels=64, kernel_size=(5,3), padding=(2,1)),
-                                   nn.BatchNorm2d(64),
-                                   nn.LeakyReLU(),
-                                   nn.MaxPool2d((2,1)),
-                                   )
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(in_channels=stt_chnl, out_channels=64, kernel_size=(5, 3), padding=(2, 1)),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(),
+            nn.MaxPool2d((2, 1)),
+            )
         self.conv1.apply(self.init_weights)
 
-        self.conv2 = nn.Sequential(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(5,3), padding=(2,1)),
+        self.conv2 = nn.Sequential(nn.Conv2d(in_channels=64, out_channels=128, kernel_size=(5, 3), padding=(2, 1)),
                                    nn.BatchNorm2d(128),
                                    nn.LeakyReLU(),
-                                   nn.MaxPool2d((2,1)),
+                                   nn.MaxPool2d((2, 1)),
                                    )
         self.conv2.apply(self.init_weights)
 
         self.fc = nn.Linear(15360, 2)
         self.dropout = nn.Dropout(dr_rate)
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.conv2(x)
@@ -224,7 +244,6 @@ class baseline_CNN_5day(nn.Module):
         x = self.dropout(x)
         x = self.fc(x)
         return x
-
 def get_d20_model_and_history(mdl_pth, hry_pth, DEVICE):
     try:
         model = baseline_CNN_20day(dr_rate=0.5, stt_chnl=1).to(DEVICE)
@@ -233,7 +252,8 @@ def get_d20_model_and_history(mdl_pth, hry_pth, DEVICE):
         model = nn.DataParallel(baseline_CNN_20day(dr_rate=0.5, stt_chnl=1)).to(DEVICE)
         model.load_state_dict(torch.load(mdl_pth, map_location=DEVICE))
     hstry = torch.load(hry_pth)
-    Tacc, Vacc, eps = hstry['acc_history']['train'][-1], hstry['acc_history']['val'][-1], len(hstry['acc_history']['train'])
+    Tacc, Vacc, eps = hstry['acc_history']['train'][-1], hstry['acc_history']['val'][-1], len(
+        hstry['acc_history']['train'])
     return model, hstry, Tacc, Vacc, eps
 def get_d05_model_and_history(mdl_pth, hry_pth, DEVICE):
     try:
@@ -243,9 +263,9 @@ def get_d05_model_and_history(mdl_pth, hry_pth, DEVICE):
         model = nn.DataParallel(baseline_CNN_5day(dr_rate=0.5, stt_chnl=1)).to(DEVICE)
         model.load_state_dict(torch.load(mdl_pth, map_location=DEVICE))
     hstry = torch.load(hry_pth)
-    Tacc, Vacc, eps = hstry['acc_history']['train'][-1], hstry['acc_history']['val'][-1], len(hstry['acc_history']['train'])
+    Tacc, Vacc, eps = hstry['acc_history']['train'][-1], hstry['acc_history']['val'][-1], len(
+        hstry['acc_history']['train'])
     return model, hstry, Tacc, Vacc, eps
-
 def eval_loop(dataloader, net, loss_fn, DEVICE):
     # dataloader, net, loss_fn, DEVICE=test_DL, model_V2_TmPlng_body2, criterion, DEVICE
     # dataloader, net, loss_fn, DEVICE=test_DL_v_05to05, bCNN_v_050505_model_1, criterion, DEVICE
@@ -253,9 +273,9 @@ def eval_loop(dataloader, net, loss_fn, DEVICE):
     current = 0
     net.eval()
     predict = []
-    codes=[]
-    dates=[]
-    returns=[]
+    codes = []
+    dates = []
+    returns = []
     target = []
     with torch.no_grad():
         with tqdm(dataloader) as t:
@@ -275,18 +295,7 @@ def eval_loop(dataloader, net, loss_fn, DEVICE):
                 current += len(X)
     returns = torch.cat(returns).cpu().numpy()
     targets = torch.cat(target).cpu().numpy()
-    return avg_loss, torch.cat(predict),codes, dates,returns,targets
-def inference_result_save(pred1, test_code, test_date, test_return, test_label, epoches):
-    return pd.DataFrame(
-        {
-         "Prob_Positive": pred1,
-         "종목코드": test_code,
-         "return": test_return,
-         "label": test_label,
-         "epoch": epoches
-         }, index=pd.to_datetime(test_date)).rename_axis("date").sort_index()
-
-
+    return avg_loss, torch.cat(predict), codes, dates, returns, targets
 class CustomDataset_today_inference(Dataset):
     def __init__(self, image_data_path, F_day_type=20, T_day_type=20, transform=None):
         self.transform = transform
@@ -304,8 +313,8 @@ class CustomDataset_today_inference(Dataset):
                 self.data.append(img)
                 self.codes.append(code)
                 self.dates.append(date)
-                self.returns.append(-1)
-                self.labels.append(-1)
+                self.returns.append(0)
+                self.labels.append(0)
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
