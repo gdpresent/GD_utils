@@ -165,8 +165,13 @@ def inference_result_save(pred1, test_code, test_date, test_return, test_label, 
          "label": test_label,
          "epoch": epoches
          }, index=pd.to_datetime(test_date)).rename_axis("date").sort_index()
-def get_inference_result(model_pth, history_pth, test_DL, criterion, device):
-    model_trained, history, Tacc, Vacc, Teps = get_d05_model_and_history(model_pth, history_pth, device)
+def get_inference_result(model_pth, history_pth, test_DL, criterion, device, model_name='05d'):
+    if model_name == '05d':
+        model_trained, history, Tacc, Vacc, Teps = get_d05_model_and_history(model_pth, history_pth, device)
+    elif model_name == '20d':
+        model_trained, history, Tacc, Vacc, Teps = get_d20_model_and_history(model_pth, history_pth, device)
+    else:
+        raise ValueError('model_name error')
     avg_loss, preds_tmp, codes, dates, returns, labels = eval_loop(test_DL, model_trained, criterion, device)
     one_preds_1 = torch.nn.Softmax(dim=1)(preds_tmp)[:, 1].cpu().numpy()
     inference_result = inference_result_save(one_preds_1, codes, dates, returns, labels, Teps)
