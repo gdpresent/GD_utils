@@ -9,6 +9,9 @@ import time
 import yfinance as yf
 import json
 import urllib.request
+import numpy as np
+import cloudscraper
+
 yf.pdr_override()
 
 # 네이버 차트에서 수정주가(종가, 시가)
@@ -108,6 +111,99 @@ def get_KR_ETF_list():
               }
     output = output.rename(columns=col_name)
     return output
+# 미국 ETF 목록
+def get_US_ETF_list():
+    headers = {
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;"
+            "q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,"
+            "application/signed-exchange;v=b3;q=0.9"
+        ),
+        "Cache-Control": "max-age=0",
+        "Connection": "keep-alive",
+        "DNT": "1",
+        "Referer": "https://www.investing.com/",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin",
+        "Sec-Fetch-User": "?1",
+        "Upgrade-Insecure-Requests": "1",
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/112.0.5615.49 Safari/537.36"
+        )
+    }
+
+    scraper = cloudscraper.create_scraper(browser='chrome')
+    limit = 50  # 페이지당 가져올 항목 수
+    all_etfs = []  # 모든 결과를 누적할 리스트
+
+    first_params = {
+        "tableonly": "true",
+        "limit": limit,
+        "offset": 0
+    }
+    first_resp = scraper.get("https://api.nasdaq.com/api/screener/etf",
+                             headers=headers, params=first_params)
+    data_json = first_resp.json()
+    data_records = data_json.get("data", {}).get("records", {})
+
+    total_records = data_records.get("totalrecords", 0)
+    print(f"Total ETF records found: {total_records}")
+
+    first_rows = data_records.get("data", {}).get("rows", [])
+    all_etfs.extend(first_rows)
+
+    total_pages = int(np.ceil(total_records / limit))
+    print(f"Total pages: {total_pages}")
+
+    max_retry = 100  # 데이터가 안 왔을 때 재시도 횟수
+    for page_idx in tqdm(range(1, total_pages), desc="Scraping pages", unit="page"):
+        offset = page_idx * limit
+        success = False
+        attempts = 0
+
+        while attempts < max_retry:
+            attempts += 1
+
+            params = {
+                "tableonly": "true",
+                "limit": limit,
+                "offset": offset
+            }
+
+            try:
+                resp = scraper.get(
+                    "https://api.nasdaq.com/api/screener/etf",
+                    headers=headers,
+                    params=params
+                )
+                data_json = resp.json()
+                data_records = data_json.get("data", {}).get("records", {})
+                rows = data_records.get("data", {}).get("rows", [])
+
+                # rows가 있다면 성공으로 간주
+                if rows:
+                    all_etfs.extend(rows)
+                    success = True
+                    break
+                else:
+                    # 데이터가 비었다면, 대기 후 재시도
+                    # (원하시는 대기시간으로 변경 가능)
+                    print(f" Page {page_idx + 1} empty. Retry {attempts}/{max_retry}...")
+                    time.sleep(1.0 * attempts)
+            except Exception as e:
+                # 네트워크 오류 등 예외
+                print(f"Exception on offset={offset}, attempt={attempts}: {e}")
+                time.sleep(1.0 * attempts)
+
+        # 재시도 후에도 데이터 없으면, 해당 페이지는 포기(혹은 break)
+        if not success:
+            raise Exception(f"Failed to fetch page {page_idx + 1}")
+
+    df_etfs = pd.DataFrame(all_etfs)
+    return df_etfs
 
 # 국내 주식 목록
 def get_KR_STK_list(biz_day=None):
