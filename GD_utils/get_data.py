@@ -144,66 +144,12 @@ def get_US_ETF_list():
         "limit": limit,
         "offset": 0
     }
-    first_resp = scraper.get("https://api.nasdaq.com/api/screener/etf",
-                             headers=headers, params=first_params)
+
+    first_resp = scraper.get('https://api-prod.etf.com/v2/fund/tickers', headers=headers, params=first_params)
+
     data_json = first_resp.json()
-    data_records = data_json.get("data", {}).get("records", {})
-
-    total_records = data_records.get("totalrecords", 0)
-    print(f"Total ETF records found: {total_records}")
-
-    first_rows = data_records.get("data", {}).get("rows", [])
-    all_etfs.extend(first_rows)
-
-    total_pages = int(np.ceil(total_records / limit))
-    print(f"Total pages: {total_pages}")
-
-    max_retry = 100  # 데이터가 안 왔을 때 재시도 횟수
-    for page_idx in tqdm(range(1, total_pages), desc="Scraping pages", unit="page"):
-        offset = page_idx * limit
-        success = False
-        attempts = 0
-
-        while attempts < max_retry:
-            attempts += 1
-
-            params = {
-                "tableonly": "true",
-                "limit": limit,
-                "offset": offset
-            }
-
-            try:
-                resp = scraper.get(
-                    "https://api.nasdaq.com/api/screener/etf",
-                    headers=headers,
-                    params=params
-                )
-                data_json = resp.json()
-                data_records = data_json.get("data", {}).get("records", {})
-                rows = data_records.get("data", {}).get("rows", [])
-
-                # rows가 있다면 성공으로 간주
-                if rows:
-                    all_etfs.extend(rows)
-                    success = True
-                    break
-                else:
-                    # 데이터가 비었다면, 대기 후 재시도
-                    # (원하시는 대기시간으로 변경 가능)
-                    print(f" Page {page_idx + 1} empty. Retry {attempts}/{max_retry}...")
-                    time.sleep(1.0 * attempts)
-            except Exception as e:
-                # 네트워크 오류 등 예외
-                print(f"Exception on offset={offset}, attempt={attempts}: {e}")
-                time.sleep(1.0 * attempts)
-
-        # 재시도 후에도 데이터 없으면, 해당 페이지는 포기(혹은 break)
-        if not success:
-            raise Exception(f"Failed to fetch page {page_idx + 1}")
-
-    df_etfs = pd.DataFrame(all_etfs)
-    return df_etfs
+    data_df=pd.DataFrame(data_json)
+    return data_df
 
 # 국내 주식 목록
 def get_KR_STK_list(biz_day=None):
@@ -234,6 +180,12 @@ def get_all_yahoo_data(name, stt='1927-12-30', max_threads=True):
         return yf.download(name,start=stt,progress=False,threads=max_threads).rename_axis('date', axis=0).sort_index()
     else:
         return yf.download(name,start=stt,progress=False).rename_axis('date', axis=0).sort_index()
+def get_data_yahoo_close(symbols, stt='1927-12-30'):
+    if type(symbols) ==str:
+        df = get_all_yahoo_data(symbols, stt)[['Adj Close']].rename(columns={'Adj Close':symbols})
+    else:
+        df = get_all_yahoo_data(symbols, stt)['Adj Close']
+    return df
 
 def Ver_old_get_all_yahoo_data(name, stt='1927-12-30'):
     def unix_date(date):
@@ -249,12 +201,6 @@ def Ver_old_get_all_yahoo_data(name, stt='1927-12-30'):
     # pdr.data.get_data_yahoo(name, start='1920-01-01')
     return df
 
-def get_data_yahoo_close(symbols, stt='1927-12-30'):
-    if type(symbols) ==str:
-        df = get_all_yahoo_data(symbols, stt)[['Adj Close']].rename(columns={'Adj Close':symbols})
-    else:
-        df = get_all_yahoo_data(symbols, stt)['Adj Close']
-    return df
 def get_data_stooq_close(symbols, stt='1970-01-01'):
     if type(symbols) ==str:
         df = pdr.get_data_stooq(symbols, start=stt).rename_axis('date', axis=0).sort_index()[['Close']].rename(columns={'Close':symbols})
