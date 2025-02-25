@@ -23,7 +23,11 @@ def process_params(code, year_price, ExPost_return, from_day_type_int, to_day_ty
         stt_idx = from_day_type_int*2 + 1
 
     for idx in range(stt_idx, len(price_a_stock.loc[first_date:last_date].index)+1):
-        input_df = price_a_stock.iloc[idx - from_day_type_int*2:idx]
+        # input_df = price_a_stock.iloc[idx - from_day_type_int*2:idx]
+        if (idx - from_day_type_int*2)<0:
+            input_df = price_a_stock.copy()
+        else:
+            input_df = price_a_stock.iloc[idx - from_day_type_int*2:idx]
         if len(input_df.dropna(how='all', axis=0))==0:
             continue
         end_dt = input_df.index[-1]
@@ -31,7 +35,7 @@ def process_params(code, year_price, ExPost_return, from_day_type_int, to_day_ty
             label = int(ExPost_ret_code.loc[end_dt] * 100_00_00) / 100_00_00
         except:
             label=-1
-        input_df = price_a_stock.iloc[idx - from_day_type_int*2:idx].reindex(['open', 'high', 'low', 'close', 'volume', 'C_MA', 'O_MA'], axis=1)
+        input_df = input_df.reindex(['open', 'high', 'low', 'close', 'volume', 'C_MA', 'O_MA'], axis=1)
         chunk_size = from_day_type_int//to_day_type_int
 
         transformed_input = pd.DataFrame()
