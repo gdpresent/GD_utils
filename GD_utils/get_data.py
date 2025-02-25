@@ -12,7 +12,7 @@ import urllib.request
 import numpy as np
 import cloudscraper
 
-yf.pdr_override()
+# yf.pdr_override()
 
 # 네이버 차트에서 수정주가(종가, 시가)
 def get_data_naver(company_code):
@@ -84,7 +84,6 @@ def get_naver_close(company_codes):
         output = df[[company_code]]
     else:
         for company_code in company_codes:
-            company_code = company_codes
             df = get_data_naver(company_code)[['Close']].rename(columns={'Close': company_code})
             output = pd.concat([output, df[[company_code]]], axis=1)
     return output
@@ -177,9 +176,12 @@ max_threads = multitasking.cpu_count() * 2  # CPU 코어 수의 두 배로 설�
 def get_all_yahoo_data(name, stt='1927-12-30', max_threads=True):
     # return pdr.get_data_yahoo(name, start='1971-01-01').rename_axis('date', axis=0).sort_index()
     if max_threads:
-        return yf.download(name,start=stt,progress=False,threads=max_threads).rename_axis('date', axis=0).sort_index()
+        output=yf.download(name,start=stt,progress=False,auto_adjust=False,group_by_ticker=False,threads=max_threads).rename_axis('date', axis=0).sort_index()
     else:
-        return yf.download(name,start=stt,progress=False).rename_axis('date', axis=0).sort_index()
+        output=yf.download(name,start=stt,progress=False,auto_adjust=False,group_by_ticker=False).rename_axis('date', axis=0).sort_index()
+    output.columns = output.columns.droplevel(1)
+    return output
+
 def get_data_yahoo_close(symbols, stt='1927-12-30'):
     if type(symbols) ==str:
         df = get_all_yahoo_data(symbols, stt)[['Adj Close']].rename(columns={'Adj Close':symbols})
@@ -919,7 +921,8 @@ def flatten(lst):
             flat_list.append(item)
     return flat_list
 if __name__ == "__main__":
-    pass
+    # yf.download('^GSPC', auto_adjust=False)
 
+    pass
     # AA=get_SNP500_stock_list()
     # AA.to_excel('./SNP500_constituent_20240913.xlsx')
