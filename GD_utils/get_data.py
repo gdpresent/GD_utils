@@ -176,9 +176,9 @@ max_threads = multitasking.cpu_count() * 2  # CPU 코어 수의 두 배로 설�
 def get_all_yahoo_data(name, stt='1927-12-30', max_threads=True):
     # return pdr.get_data_yahoo(name, start='1971-01-01').rename_axis('date', axis=0).sort_index()
     if max_threads:
-        output=yf.download(name,start=stt,progress=False,auto_adjust=False,group_by_ticker=False,threads=max_threads).rename_axis('date', axis=0).sort_index()
+        output=yf.download(name,start=stt,progress=False,auto_adjust=False,threads=max_threads).rename_axis('date', axis=0).sort_index()
     else:
-        output=yf.download(name,start=stt,progress=False,auto_adjust=False,group_by_ticker=False).rename_axis('date', axis=0).sort_index()
+        output=yf.download(name,start=stt,progress=False,auto_adjust=False).rename_axis('date', axis=0).sort_index()
     output.columns = output.columns.droplevel(1)
     return output
 
