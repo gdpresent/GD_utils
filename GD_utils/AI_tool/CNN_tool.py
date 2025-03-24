@@ -1,12 +1,28 @@
 import numpy as np
 import pandas as pd
+import os
+import time
 import torch
 import h5py
 from tqdm import tqdm
 from torch import nn
 from torch.utils.data import Dataset
 
+
+def save_as_pd_parquet(location, pandas_df_form):
+    start = time.time()
+    pandas_df_form.to_parquet(f'{location}')
+    print(f'Saving Complete({round((time.time() - start) / 60, 2)}min): {location}')
+def read_pd_parquet(location):
+    start = time.time()
+    read = pd.read_parquet(location)
+    print(f'Loading Complete({round((time.time() - start) / 60, 2)}min): {location}')
+    return read
+
+
+
 def process_params(code, year_price, ExPost_return, from_day_type_int, to_day_type_int, image_size_dict, only_today=False):
+    # code = 'A0015B0'
     # from_day_type_int, to_day_type_int = from_day_type, to_day_type
     local_params_list = []
     ExPost_ret_code = ExPost_return[code]
@@ -335,3 +351,305 @@ class CustomDataset_today_inference(Dataset):
         date = self.dates[idx]
         returns = self.returns[idx]
         return img, code, date, returns, label
+class CustomDataset_today_inference_yearly(Dataset):
+    def __init__(self, image_data_path, F_day_type=20, T_day_type=20, transform=None):
+        self.transform = transform
+
+        self.data = []
+        self.codes = []
+        self.dates = []
+        self.returns=[]
+        self.labels=[]
+        with h5py.File(f"{image_data_path}/{F_day_type}day_to_{T_day_type}day.h5", 'r') as hf:
+            loaded_images = hf['images'][:]
+            loaded_codes = [s.decode('utf-8') for s in hf['codes'][:]]
+            loaded_dates = [s.decode('utf-8') for s in hf['dates'][:]]
+            for img, code, date in zip(loaded_images, loaded_codes, loaded_dates):
+                self.data.append(img)
+                self.codes.append(code)
+                self.dates.append(date)
+                self.returns.append(0)
+                self.labels.append(0)
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+        img = self.data[idx]
+        label = self.labels[idx]
+        if self.transform:
+            img = self.transform(img)
+        code = self.codes[idx]
+        date = self.dates[idx]
+        returns = self.returns[idx]
+        return img, code, date, returns, label
+
+class OHLCV_cls:
+    def __init__(self, data_date, country, data_source):
+        self.country = country
+        self.data_source = data_source
+        self.data_date = data_date
+        self.excel_path = f'./data/{self.data_source}/excel'
+        self.DB_path = f'./data/{self.data_source}/DB/{self.data_date}'
+        os.makedirs(self.DB_path, exist_ok=True)
+
+        print(f'{self.country} 데이터')
+        print(f'데이터 기준 날짜: {self.data_date}')
+
+
+        self.open, self.high, self.low, self.close, self.volume, self.code_to_name = self.get_daily_OHLCV()
+        self.open_to_close = self.gen_Open_Close_concat()
+
+        self.ExPost_dict = {
+                            5: self.get_ExPost_return(n_day=5),
+                            20: self.get_ExPost_return(n_day=20),
+                            60: self.get_ExPost_return(n_day=60)
+                            }
+        self.close_MA_dict = {
+                              5: self.get_Close_MA_n(n_day=5),
+                              20:self.get_Close_MA_n(n_day=20),
+                              60:self.get_Close_MA_n(n_day=60)
+                             }
+        self.open_MA_dict = {
+                              5:self.get_Open_MA_n(n_day=5),
+                              20:self.get_Open_MA_n(n_day=20),
+                              60:self.get_Open_MA_n(n_day=60)
+                             }
+
+    # 가격 원본 데이터 Query
+    def get_daily_OHLCV_KR_raw(self):
+        if not os.path.exists(f'{self.DB_path}/{self.country}_mktcap_{self.data_date}.hd5'):
+            tmp_read=pd.read_excel(f'{self.excel_path}/{self.country}_daily_data_{self.data_date}.xlsx', sheet_name='수정주가')
+            _code_to_name = tmp_read.iloc[6:8].T.iloc[1:].set_index(6).rename_axis('code').rename(columns={7:'name'})
+            _close = self.QuantiWise_data_preprocessing(tmp_read);print('close read')
+            _open = self.QuantiWise_data_preprocessing(pd.read_excel(f'{self.excel_path}/{self.country}_daily_data_{self.data_date}.xlsx', sheet_name='수정시가'));print('open read')
+            _high = self.QuantiWise_data_preprocessing(pd.read_excel(f'{self.excel_path}/{self.country}_daily_data_{self.data_date}.xlsx', sheet_name='수정고가'));print('high read')
+            _low = self.QuantiWise_data_preprocessing(pd.read_excel(f'{self.excel_path}/{self.country}_daily_data_{self.data_date}.xlsx', sheet_name='수정저가'));print('low read')
+            _volume = self.QuantiWise_data_preprocessing(pd.read_excel(f'{self.excel_path}/{self.country}_daily_data_{self.data_date}.xlsx', sheet_name='수정거래량'));print('volume read')
+            _mktcap = self.QuantiWise_data_preprocessing(pd.read_excel(f'{self.excel_path}/{self.country}_daily_data_{self.data_date}.xlsx', sheet_name='시가총액'));print('volume read')
+            _SuspTrnsctn = self.QuantiWise_data_preprocessing(pd.read_excel(f'{self.excel_path}/{self.country}_daily_data_{self.data_date}.xlsx', sheet_name='거래정지'));print('거래정지 read')
+
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_code_to_name_{self.data_date}.hd5', _code_to_name)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_open_{self.data_date}.hd5', _open)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_high_{self.data_date}.hd5', _high)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_low_{self.data_date}.hd5', _low)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_volume_{self.data_date}.hd5', _volume)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_close_{self.data_date}.hd5', _close)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_mktcap_{self.data_date}.hd5', _mktcap)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_SuspTrnsctn_{self.data_date}.hd5', _SuspTrnsctn)
+        else:
+            _open = read_pd_parquet(f'{self.DB_path}/{self.country}_open_{self.data_date}.hd5')
+            _high = read_pd_parquet(f'{self.DB_path}/{self.country}_high_{self.data_date}.hd5')
+            _low = read_pd_parquet(f'{self.DB_path}/{self.country}_low_{self.data_date}.hd5')
+            _volume = read_pd_parquet(f'{self.DB_path}/{self.country}_volume_{self.data_date}.hd5')
+            _close = read_pd_parquet(f'{self.DB_path}/{self.country}_close_{self.data_date}.hd5')
+            _mktcap = read_pd_parquet(f'{self.DB_path}/{self.country}_mktcap_{self.data_date}.hd5')
+            _code_to_name = read_pd_parquet(f'{self.DB_path}/{self.country}_code_to_name_{self.data_date}.hd5')
+            _SuspTrnsctn = read_pd_parquet(f'{self.DB_path}/{self.country}_SuspTrnsctn_{self.data_date}.hd5')
+        _open = _open[_open>0]
+        _high = _high[_high>0]
+        _low = _low[_low>0]
+        _volume = _volume[_volume>0]
+        _close = _close[_close>0]
+
+        close = _close.dropna(how='all', axis=0).dropna(how='all', axis=1)
+        open = _open.dropna(how='all', axis=0).dropna(how='all', axis=1)
+        high = _high.dropna(how='all', axis=0).dropna(how='all', axis=1)
+        low = _low.dropna(how='all', axis=0).dropna(how='all', axis=1)
+        volume = _volume.dropna(how='all', axis=0).dropna(how='all', axis=1)
+
+        init_dt = np.nanmax([close.index.min(), open.index.min(), high.index.min(), low.index.min(), volume.index.min()])
+        last_dt = np.nanmin([close.index.max(), open.index.max(), high.index.max(), low.index.max(), volume.index.max()])
+
+        close = _close.loc[init_dt:last_dt]
+        open = _open.loc[init_dt:last_dt]
+        high = _high.loc[init_dt:last_dt]
+        low = _low.loc[init_dt:last_dt]
+        volume = _volume.loc[init_dt:last_dt]
+
+        return open, high, low, close, volume, _code_to_name,_SuspTrnsctn
+
+    # 가격 데이터 전처리
+    def get_daily_OHLCV(self):
+        open_raw, high_raw, low_raw, close_raw, volume_raw, code_to_name, SuspTrnsctn = self.get_daily_OHLCV_KR_raw()
+        open_raw[SuspTrnsctn==1]=np.nan
+        high_raw[SuspTrnsctn==1]=np.nan
+        low_raw[SuspTrnsctn==1]=np.nan
+        close_raw[SuspTrnsctn==1]=np.nan
+        volume_raw[SuspTrnsctn==1]=np.nan
+        # close_raw['A476470']
+        if not os.path.exists(f'{self.DB_path}/{self.country}_close_processed_{self.data_date}.hd5'):
+            # 거래량 0 -> 거래량 NaN값 처리
+            volume_0_mask = volume_raw.le(0)
+            # volume_raw.le(0).equals(volume_raw.eq(0))
+            volume_raw[volume_0_mask] = np.nan
+
+            # open값 없음 -> 오늘 종가/거래량, 어제 종가/거래량 존재하면 오늘의 open은 어제의 종가로 채워주자
+            # 맨 뒤에서
+            # open_null_mask = open_raw.isnull()
+            # close_raw[open_null_mask]=np.nan
+            # high_raw[open_null_mask]=np.nan
+            # low_raw[open_null_mask]=np.nan
+            # volume_raw[open_null_mask]=np.nan
+
+            # close값 없음 -> 모든 데이터 NaN값 처리(추론 불가능)
+            close_null_mask = close_raw.isnull()
+            open_raw[close_null_mask] = np.nan
+            high_raw[close_null_mask] = np.nan
+            low_raw[close_null_mask] = np.nan
+            volume_raw[close_null_mask] = np.nan
+
+            # 시고저종 모두 NaN값 -> 거래량 NaN값 처리
+            high_null_mask = high_raw.isnull()
+            low_null_mask = low_raw.isnull()
+            open_null_mask = open_raw.isnull()
+            price_all_null_mask = open_null_mask & close_null_mask & high_null_mask & low_null_mask
+            volume_raw[price_all_null_mask] = np.nan
+
+            # 비어있는 high와 low는, 존재하는 open과 close로 filling
+            # 이거는 여기에서 처리하면 안되겠다
+            # --> 이미지 데이터 뽑아내기 직전에 처리했음(def process_code_idx)
+
+            # low가 high보다 높으면 그날 모든 데이터 없다 처리(data error로 간주)
+            low_exist_mask = low_raw.notna()
+            high_exist_mask = high_raw.notna()
+            low_exist = low_raw[low_exist_mask & high_exist_mask]
+            high_exist = high_raw[low_exist_mask & high_exist_mask]
+            Low_greater_than_high_mask = low_exist.gt(high_exist)
+            open_raw[Low_greater_than_high_mask] = np.nan
+            high_raw[Low_greater_than_high_mask] = np.nan
+            low_raw[Low_greater_than_high_mask] = np.nan
+            close_raw[Low_greater_than_high_mask] = np.nan
+            volume_raw[Low_greater_than_high_mask] = np.nan
+
+            # open값 없음 -> 오늘 종가/거래량, 어제 종가/거래량 존재하면 오늘의 open은 어제의 종가로 채워주자
+            # open_null_mask 위에서 이미 한 번 선언 했었으니까
+            today_close_exist = close_raw.notna()
+            yesterday_close_exist = close_raw.notna().shift(1)
+            today_open_null = open_raw.isnull()
+            to_replace_value = close_raw.shift(1)[today_open_null & today_close_exist & yesterday_close_exist].stack()
+            for idx in tqdm(to_replace_value.index, desc='######## NaN open filling ########'):
+                open_raw.loc[idx[0], idx[1]] = to_replace_value.loc[idx]
+
+            # 거래량 NaN -> 모든 가격 NaN값 처리
+            volume_nan_mask = volume_raw.isnull()
+            open_raw[volume_nan_mask] = np.nan
+            high_raw[volume_nan_mask] = np.nan
+            low_raw[volume_nan_mask] = np.nan
+            close_raw[volume_nan_mask] = np.nan
+
+            # 없다 처리 된 것들 있으니까 한 번 더
+            # 시고저종 모두 NaN값 -> 거래량 NaN값 처리
+            high_null_mask2 = high_raw.isnull()
+            low_null_mask2 = low_raw.isnull()
+            open_null_mask2 = open_raw.isnull()
+            close_null_mask2 = close_raw.isnull()
+            price_all_null_mask2 = open_null_mask2 & close_null_mask2 & high_null_mask2 & low_null_mask2
+            volume_raw[price_all_null_mask2] = np.nan
+
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_open_processed_{self.data_date}.hd5', open_raw)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_high_processed_{self.data_date}.hd5', high_raw)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_low_processed_{self.data_date}.hd5', low_raw)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_volume_processed_{self.data_date}.hd5', volume_raw)
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_close_processed_{self.data_date}.hd5', close_raw)
+
+        open_processed = read_pd_parquet(f'{self.DB_path}/{self.country}_open_processed_{self.data_date}.hd5')
+        high_processed = read_pd_parquet(f'{self.DB_path}/{self.country}_high_processed_{self.data_date}.hd5')
+        low_processed = read_pd_parquet(f'{self.DB_path}/{self.country}_low_processed_{self.data_date}.hd5')
+        volume_processed = read_pd_parquet(f'{self.DB_path}/{self.country}_volume_processed_{self.data_date}.hd5')
+        close_processed = read_pd_parquet(f'{self.DB_path}/{self.country}_close_processed_{self.data_date}.hd5')
+
+        return open_processed, high_processed, low_processed, close_processed, volume_processed, code_to_name
+
+    # 사후수익률 선계산
+    def get_ExPost_return(self, n_day):
+        if not os.path.exists(f'{self.DB_path}/{self.country}_ExPost_return_{n_day}_{self.data_date}.hd5'):
+            tmp = self.open_to_close.pct_change((n_day*2)-1, fill_method=None).shift(-(n_day*2)).dropna(how='all', axis=0).loc[lambda x:x.index.hour==16]
+            output=pd.DataFrame(tmp.values, columns=tmp.columns, index=[pd.to_datetime(x) for x in tmp.index.date])
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_ExPost_return_{n_day}_{self.data_date}.hd5', output)
+        else:
+            output = read_pd_parquet(f'{self.DB_path}/{self.country}_ExPost_return_{n_day}_{self.data_date}.hd5')
+        return output
+
+    # 시가-종가 연결
+    def gen_Open_Close_concat(self):
+        open_time = pd.DataFrame(self.open.values, columns=self.open.columns, index=[x+pd.DateOffset(hours=9) for x in self.open.index])
+        close_time = pd.DataFrame(self.close.values, columns=self.close.columns, index=[x+pd.DateOffset(hours=16) for x in self.close.index])
+        return pd.concat([open_time, close_time], axis=0).sort_index()
+
+    # 시가-종가 연결하여 이동평균선 종가 부분을 만들어 놓음
+    def get_Close_MA_n(self, n_day):
+        if not os.path.exists(f'{self.DB_path}/{self.country}_C_MA_{n_day}_{self.data_date}.hd5'):
+            tmp=self.open_to_close.rolling(min_periods=n_day*2, window=n_day*2).mean().loc[lambda x:x.index.hour==16]
+            output=pd.DataFrame(tmp.values, columns=tmp.columns, index=[pd.to_datetime(x) for x in tmp.index.date])
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_C_MA_{n_day}_{self.data_date}.hd5', output)
+        else:
+            output = read_pd_parquet(f'{self.DB_path}/{self.country}_C_MA_{n_day}_{self.data_date}.hd5')
+        return output
+    # 시가-종가 연결하여 이동평균선 시가 부분을 만들어 놓음
+    def get_Open_MA_n(self, n_day):
+        if not os.path.exists(f'{self.DB_path}/{self.country}_O_MA_{n_day}_{self.data_date}.hd5'):
+            tmp = self.open_to_close.rolling(min_periods=n_day * 2, window=n_day * 2).mean().loc[lambda x: x.index.hour == 9]
+            output = pd.DataFrame(tmp.values, columns=tmp.columns, index=[pd.to_datetime(x) for x in tmp.index.date])
+            # output_old = self.close.rolling(min_periods=n_day, window=n_day).mean()
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_O_MA_{n_day}_{self.data_date}.hd5', output)
+        else:
+            output = read_pd_parquet(f'{self.DB_path}/{self.country}_O_MA_{n_day}_{self.data_date}.hd5')
+        return output
+
+    # 1년단위로 데이터 불러오는 부분(주가데이터의 이미지화는 1년 단위로 처리함)
+    def get_period_price_and_ExPostRet_v2(self, year_str, day_type):
+        try:
+            day_type_ago_date = self.volume.loc[f'{int(year_str) - 1}'].iloc[-int(day_type)*2:].index[0]
+        except:
+            day_type_ago_date = self.volume.loc[f'{int(year_str)}'].index[0]
+
+        # 이제 모든 DataFrame을 병합합니다.
+        year_price = pd.concat({
+            'open': self.open.loc[day_type_ago_date:year_str].dropna(how='all', axis=1),
+            'high': self.high.loc[day_type_ago_date:year_str].dropna(how='all', axis=1),
+            'low': self.low.loc[day_type_ago_date:year_str].dropna(how='all', axis=1),
+            'close': self.close.loc[day_type_ago_date:year_str].dropna(how='all', axis=1),
+            'volume': self.volume.loc[day_type_ago_date:year_str].dropna(how='all', axis=1),
+            'C_MA': self.close_MA_dict[day_type].loc[day_type_ago_date:year_str].dropna(how='all', axis=1),
+            'O_MA': self.open_MA_dict[day_type].loc[day_type_ago_date:year_str].dropna(how='all', axis=1),
+        }, axis=1)
+
+
+        ExPost_return = self.ExPost_dict[day_type].loc[day_type_ago_date:year_str]
+        return year_price, ExPost_return
+    def get_period_price_and_ExPostRet_ETFonly(self, year_str, day_type, ETF_univ):
+        try:
+            day_type_ago_date = self.volume.loc[f'{int(year_str) - 1}'].iloc[-int(day_type)*2:].index[0]
+        except:
+            day_type_ago_date = self.volume.loc[f'{int(year_str)}'].index[0]
+
+        # 이제 모든 DataFrame을 병합합니다.
+        year_price = pd.concat({
+            'open': self.open.loc[day_type_ago_date:year_str,ETF_univ].dropna(how='all', axis=1),
+            'high': self.high.loc[day_type_ago_date:year_str,ETF_univ].dropna(how='all', axis=1),
+            'low': self.low.loc[day_type_ago_date:year_str,ETF_univ].dropna(how='all', axis=1),
+            'close': self.close.loc[day_type_ago_date:year_str,ETF_univ].dropna(how='all', axis=1),
+            'volume': self.volume.loc[day_type_ago_date:year_str,ETF_univ].dropna(how='all', axis=1),
+            'C_MA': self.close_MA_dict[day_type].loc[day_type_ago_date:year_str,ETF_univ].dropna(how='all', axis=1),
+            'O_MA': self.open_MA_dict[day_type].loc[day_type_ago_date:year_str,ETF_univ].dropna(how='all', axis=1),
+        }, axis=1)
+
+
+        ExPost_return = self.ExPost_dict[day_type].loc[day_type_ago_date:year_str]
+        return year_price, ExPost_return
+
+    # Quantiwise 와꾸 데이터전처리
+    def QuantiWise_data_preprocessing(self, data, univ=[]):
+        data.columns = data.iloc[6]
+        data = data.drop(range(0, 13), axis=0)
+        data = data.rename(columns={'Code': 'date'}).rename_axis("종목코드", axis="columns").set_index('date')
+        data.index = pd.to_datetime(data.index)
+        if len(univ) != 0:
+            data = data[univ]
+        return data
+    def Refinitiv_data_preprocessing(self, pvt_tmp):
+        # pvt_tmp=o_pvt_raw.copy()
+        pvt_tmp.index = pd.to_datetime(pvt_tmp.index)
+        pvt_tmp = pvt_tmp.drop(pvt_tmp.iloc[0][pvt_tmp.iloc[0].apply(lambda x: type(x)==str)].index, axis=1)
+        pvt_tmp = pvt_tmp[pvt_tmp.columns[~pvt_tmp.columns.isna()]]
+        pvt_tmp = pvt_tmp.dropna(how='all', axis=0).dropna(how='all', axis=1)
+        return pvt_tmp
