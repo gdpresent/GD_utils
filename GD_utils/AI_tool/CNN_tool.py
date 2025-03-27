@@ -20,7 +20,6 @@ def read_pd_parquet(location):
     return read
 
 
-
 def process_params(code, year_price, ExPost_return, from_day_type_int, to_day_type_int, image_size_dict, only_today=False):
     # code = 'A0015B0'
     # from_day_type_int, to_day_type_int = from_day_type, to_day_type
@@ -174,6 +173,138 @@ def process_imaging(params):
     input_df, code, end_dt, label, day_type, image_size_dict = params
     img = convert_ohlcv_to_image(input_df, image_size_dict[day_type][0], image_size_dict[day_type][1])
     return img, code, end_dt.strftime("%Y%m%d"), label
+
+# Train
+def loss_epoch(model, DL, criterion, DEVICE, optimizer = None):
+    N = len(DL.dataset) # the number of data(train data일수도있고, validation data일수도 있고)
+    rloss = 0; rcorrect = 0
+    for x_batch, y_batch in tqdm(DL):
+        x_batch = x_batch.to(DEVICE)
+        y_batch = y_batch.to(DEVICE)
+
+        # inference
+        y_hat = model(x_batch)
+
+        # loss
+        loss = criterion(y_hat, y_batch)
+
+        # update -> test를 흉내내는 validation으로는 update가 되면 안 됨!
+        # optimizer가 없으면 하지 말아라~
+        if optimizer is not None:
+            optimizer.zero_grad() # gradient 누적을 막기 위한 초기화
+            loss.backward() # backpropagation
+            optimizer.step() # weight update
+
+        # loss accumulation
+        loss_b = loss.item() * x_batch.shape[0] # batch loss # BATCH_SIZE를 곱하면 마지막 18개도 32개를 곱하니까..
+        rloss += loss_b # running loss
+
+        # accuracy accumulation
+        pred = y_hat.argmax(dim=1)
+        corrects_b = torch.sum(pred == y_batch).item()
+        rcorrect += corrects_b
+
+    loss_e = rloss/ N # epoch loss
+    accuracy_e = rcorrect/N*100
+    return loss_e, accuracy_e, rcorrect
+def Train_Nepoch_ES(model, train_DL, val_DL, criterion, DEVICE, optimizer,EPOCH, BATCH_SIZE, TRAIN_RATIO,save_model_path,save_history_path, N_EPOCH_ES, init_val_loss=100E100, **kwargs):
+    if "LR_STEP" in kwargs:
+        scheduler = StepLR(optimizer, step_size=kwargs["LR_STEP"], gamma=kwargs["LR_GAMMA"])
+    else:
+        scheduler = None
+
+    loss_history = {"train": [], "val": []}
+    acc_history = {"train": [], "val": []}  # 나중에 그냥 train error 줄면서 accuracy는 어떻게 되는지 그런거 함 봐보자~
+
+    # init_val_loss=100E100 # 그냥 큰 수로 initialize
+    print(f'Initial Validation Loss: {init_val_loss}')
+    no_improve_count = 0  # 연속으로 개선되지 않은 epoch의 횟수
+
+    for ep in range(EPOCH):
+        if ep == 0:
+            print('No Update')
+            torch.save(model.state_dict(), save_model_path)
+        epoch_start = time.time()
+        current_lr = optimizer.param_groups[0]["lr"]
+        print(f"Epoch: {ep + 1}, current_LR = {current_lr}\n")
+
+        model.train()
+        train_loss, train_acc, _ = loss_epoch(model, train_DL, criterion, DEVICE, optimizer)
+        loss_history["train"] += [train_loss]
+        acc_history["train"] += [train_acc]
+
+        model.eval()  # test mode로 전환(validation은 test mode on 해야지~)
+        with torch.no_grad():
+            val_loss, val_acc, _ = loss_epoch(model, val_DL, criterion, DEVICE)
+            loss_history["val"] += [val_loss]
+            acc_history["val"] += [val_acc]
+
+            if val_loss < init_val_loss:
+                init_val_loss = val_loss
+                print(f'reset: BEST Error - {init_val_loss}')
+                no_improve_count = 0  # reset
+                torch.save(model.state_dict(), save_model_path)
+            else:
+                # print(f'reset: BEST Error - {best_val_loss}')
+                no_improve_count += 1  # increment
+
+        if "LR_STEP" in kwargs:
+            scheduler.step()
+        # print loss
+        print(
+              f"\ntrain loss: {round(train_loss, 5)}, "
+              f"val loss: {round(val_loss, 5)} \n"
+              f"train acc: {round(train_acc, 1)} %, "
+              f"val acc: {round(val_acc, 1)} %, time: {round(time.time() - epoch_start)} s")
+        print("-" * 20)
+
+        # Check for early stopping condition
+        if no_improve_count >= N_EPOCH_ES:
+            print("Early stopping triggered")
+            break
+            # torch.save({"model": model,
+            #             "ep": ep,
+            #             "optimizer": optimizer,
+            #             "scheduler": scheduler}, save_model_path)
+
+    torch.save({"loss_history": loss_history,
+                "acc_history": acc_history,
+                "EPOCH": EPOCH,
+                "BATCH_SIZE": BATCH_SIZE,
+                "TRAIN_RATIO": TRAIN_RATIO}, save_history_path)
+
+    return acc_history['train'][-1],acc_history['val'][-1], len(acc_history['train'])
+
+# Test
+def eval_loop(dataloader, net, loss_fn, DEVICE):
+    # dataloader, net, loss_fn, DEVICE=test_DL, model_V2_TmPlng_body2, criterion, DEVICE
+    running_loss = 0.0
+    current = 0
+    net.eval()
+    predict = []
+    codes=[]
+    dates=[]
+    returns=[]
+    target = []
+    with torch.no_grad():
+        with tqdm(dataloader) as t:
+            for batch, (img, code, date, rets, label) in enumerate(t):
+                X = img.to(DEVICE)
+                y = label.to(DEVICE)
+                y_pred = net(X)
+                target.append(y.detach())
+                codes.extend(code)
+                dates.extend(date)
+                returns.append(rets.detach())
+                predict.append(y_pred.detach())
+                loss = loss_fn(y_pred, y.long())
+                running_loss += loss.item() * len(X)  # Here we update the running_loss
+                avg_loss = running_loss / (current + len(X))
+                t.set_postfix({'running_loss': avg_loss})
+                current += len(X)
+    returns = torch.cat(returns).cpu().numpy()
+    targets = torch.cat(target).cpu().numpy()
+    return avg_loss, torch.cat(predict),codes, dates,returns,targets
 
 
 def inference_result_save(pred1, test_code, test_date, test_return, test_label, epoches):
@@ -381,6 +512,113 @@ class CustomDataset_today_inference_yearly(Dataset):
         date = self.dates[idx]
         returns = self.returns[idx]
         return img, code, date, returns, label
+
+
+def labeling_v1(lb_tmp):
+    if lb_tmp>0:
+        label = 1
+    else:
+        label = 0
+    return label
+class CustomDataset_all(Dataset):
+    def __init__(self, image_data_path, data_source, train, data_date,stt_date=None, until_date=None, transform=None,Pred_Hrz = 20,cap_criterion=0.2,F_day_type=20, T_day_type=20):
+        self.transform = transform
+        self.train=train
+
+        if "KR" in image_data_path: self.country ="KR"
+        else:self.country ="US"
+
+        self.data_source = data_source
+        self.data_date = data_date
+        self.excel_path = f'./data/{self.data_source}/excel'
+        self.DB_path = f'./data/{self.data_source}/DB/{self.data_date}'
+
+        until_date = pd.to_datetime(until_date)
+        until_year = until_date.year
+        stt_date = pd.to_datetime(stt_date)
+
+        if stt_date == None:
+            stt_year = 1990
+        else:
+            stt_year = stt_date.year
+        years = [x for x in range(until_year+1) if x>=stt_year]
+
+        ExPost = self.get_ExPost_return(n_day=Pred_Hrz)
+        self.last_date = ExPost.index[-1]
+        date_code_list_MiniCap_remove = self.get_date_code_list_MiniCap_remove(until_date, stt_date,cap_criterion=cap_criterion)
+
+        self.data = []
+        self.codes = []
+        self.dates = []
+        self.returns = []
+        self.labels = []
+        for year in tqdm(years[::-1], desc='### Data Loading ###'):
+            if not os.path.exists(f"{image_data_path}/{F_day_type}day_to_{T_day_type}day_{year}.h5"):
+                print(f'파일 없음:\n\t"{image_data_path}/{F_day_type}day_to_{T_day_type}day_{year}.h5"')
+                continue
+            with h5py.File(f"{image_data_path}/{F_day_type}day_to_{T_day_type}day_{year}.h5", 'r') as hf:
+                loaded_images = hf['images'][:]
+                loaded_codes = [s.decode('utf-8') for s in hf['codes'][:]]
+                loaded_dates = [s.decode('utf-8') for s in hf['dates'][:]]
+                for img, code, date in zip(loaded_images, loaded_codes, loaded_dates):
+                    if f'{date}_{code}' in date_code_list_MiniCap_remove:
+                        ret = ExPost.loc[pd.to_datetime(date), code]
+                        lab = labeling_v1(ret)
+
+                        self.data.append(img)
+                        self.codes.append(code)
+                        self.dates.append(date)
+                        self.returns.append(ret)
+                        self.labels.append(lab)
+        if self.train:
+            # clear memory
+            self.codes = []
+            self.dates = []
+            self.returns = []
+    def __len__(self):
+        return len(self.data)
+    def __getitem__(self, idx):
+        img = self.data[idx]
+        label = self.labels[idx]
+        if self.transform:
+            img = self.transform(img)
+        if self.train:
+            return img, label
+        else:
+            code = self.codes[idx]
+            date = self.dates[idx]
+            returns = self.returns[idx]
+            return img, code, date, returns, label
+    def get_date_code_list_MiniCap_remove(self, until_date,stt_date,cap_criterion):
+        # if os.path.exists(f'./data/{data_source}/DB/{data_date}/{COUNTRY}_mktcap.hd5'):
+        if os.path.exists(f'{self.DB_path}/{self.country}_mktcap_{self.data_date}.hd5'):
+            # Cap_df_raw = read_pd_parquet(f'./data/{data_source}/DB/{data_date}/{COUNTRY}_mktcap.hd5')#.loc[stt_date:f'{until_date}']
+            Cap_df_raw = read_pd_parquet(f'{self.DB_path}/{self.country}_mktcap_{self.data_date}.hd5')#.loc[stt_date:f'{until_date}']
+        else:
+            # Cap_df_raw = data_preprocessing(pd.read_excel(f'./data/{data_source}/{COUNTRY}_daily_data_{data_date}.xlsx', sheet_name='시가총액'))
+            # save_as_pd_parquet(f'./data/{data_source}/{COUNTRY}_MktCap_{data_date}.hd5', Cap_df_raw)
+            raise ValueError('데이터 없음')
+        Cap_df_raw = Cap_df_raw.loc[:f'{self.last_date}']
+        Cap_df_raw = Cap_df_raw.loc[stt_date:f'{until_date}']
+
+        Cap_df_removed_20th = Cap_df_raw[Cap_df_raw.rank(ascending=True, pct=True, axis=1) >= cap_criterion]
+        # print(f'Cap_df:\n{Cap_df_removed_20th}')
+
+        dt_code_set = set()
+        for dt, code in tqdm(Cap_df_removed_20th.stack().index, desc=f'시가총액 하위 {int(cap_criterion * 100)}% 종목 제거 리스트 산출'):
+            dt_code_set.add(f'{dt.strftime("%Y%m%d")}_{code}')
+        return dt_code_set
+    def get_ExPost_return(self,n_day):
+        if not os.path.exists(f'{self.DB_path}/{self.country}_ExPost_return_{n_day}_{self.data_date}.hd5'):
+            tmp = self.open_to_close.pct_change((n_day*2)-1, fill_method=None).shift(-(n_day*2)).dropna(how='all', axis=0).loc[lambda x:x.index.hour==16]
+            output=pd.DataFrame(tmp.values, columns=tmp.columns, index=[pd.to_datetime(x) for x in tmp.index.date])
+            save_as_pd_parquet(f'{self.DB_path}/{self.country}_ExPost_return_{n_day}_{self.data_date}.hd5', output)
+        else:
+            output = read_pd_parquet(f'{self.DB_path}/{self.country}_ExPost_return_{n_day}_{self.data_date}.hd5')
+        return output
+
+
+
 
 class OHLCV_cls:
     def __init__(self, data_date, country, data_source):
