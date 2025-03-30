@@ -1049,6 +1049,7 @@ class BrinsonHoodBeebower_PortfolioAnalysis(PortfolioAnalysis):
 
         Asset_info_input = Asset_info_input.set_index('종목코드')['class']
         # P_w_pvt_input,B_w_pvt_input=Lrisk_w_pvt_input.div(100).copy(), LB_w_pvt_input.copy()
+        # self = BrinsonHoodBeebower_calculator(P_w_pvt_input,B_w_pvt_input,Asset_info_input, Index_Daily_price_input, cost, n_day_after)
         BF_clac = BrinsonHoodBeebower_calculator(P_w_pvt_input,B_w_pvt_input,Asset_info_input, Index_Daily_price_input, cost, n_day_after)
         Port_p_df = BF_clac.Port_cls.portfolio_cumulative_return#.loc[:P_w_pvt_input.index.max()]
         BM_p_df = BF_clac.Bench_cls.portfolio_cumulative_return#.loc[:P_w_pvt_input.index.max()]
