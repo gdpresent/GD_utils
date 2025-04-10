@@ -8,6 +8,10 @@ from tqdm import tqdm
 from torch import nn
 from torch.utils.data import Dataset
 
+# AMP 관련 import
+from torch.cuda.amp import autocast, GradScaler
+import torch._dynamo as dynamo
+torch.backends.cudnn.benchmark = True
 
 def save_as_pd_parquet(location, pandas_df_form):
     start = time.time()
@@ -207,6 +211,47 @@ def loss_epoch(model, DL, criterion, DEVICE, optimizer = None):
     loss_e = rloss/ N # epoch loss
     accuracy_e = rcorrect/N*100
     return loss_e, accuracy_e, rcorrect
+def loss_epoch_AMP(model, dataloader, criterion, DEVICE, optimizer=None, scaler=None):
+    """
+    AMP를 적용한 epoch 단위 loss 계산 함수
+    (train 또는 val 구분은 optimizer 유무로 판단)
+    """
+    N = len(dataloader.dataset)
+    running_loss = 0.0
+    running_correct = 0
+
+    # 모델이 train 모드인지, eval 모드인지 외부에서 설정해 준 후 호출
+    for x_batch, y_batch in tqdm(dataloader):
+        x_batch = x_batch.to(DEVICE, non_blocking=True)
+        y_batch = y_batch.to(DEVICE, non_blocking=True)
+
+        # 자동 mixed precision
+        with autocast():
+            y_hat = model(x_batch)
+            loss = criterion(y_hat, y_batch)
+
+        if optimizer is not None:
+            # 스케일러로 backward
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+            optimizer.zero_grad()
+        else:
+            # validation/test 모드일 땐 backward 안 함
+            pass
+
+        # accumulate loss
+        running_loss += loss.item() * x_batch.shape[0]
+
+        # accuracy
+        preds = y_hat.argmax(dim=1)
+        running_correct += torch.sum(preds == y_batch).item()
+
+    loss_epoch = running_loss / N
+    accuracy_epoch = running_correct / N * 100
+    return loss_epoch, accuracy_epoch, running_correct
+
+
 def Train_Nepoch_ES(model, train_DL, val_DL, criterion, DEVICE, optimizer,EPOCH, BATCH_SIZE, TRAIN_RATIO,save_model_path,save_history_path, N_EPOCH_ES, init_val_loss=100E100, **kwargs):
     if "LR_STEP" in kwargs:
         scheduler = StepLR(optimizer, step_size=kwargs["LR_STEP"], gamma=kwargs["LR_GAMMA"])
@@ -274,6 +319,88 @@ def Train_Nepoch_ES(model, train_DL, val_DL, criterion, DEVICE, optimizer,EPOCH,
                 "TRAIN_RATIO": TRAIN_RATIO}, save_history_path)
 
     return acc_history['train'][-1],acc_history['val'][-1], len(acc_history['train'])
+def Train_Nepoch_ES_AMP(model, train_DL, val_DL, criterion, DEVICE, optimizer, EPOCH, BATCH_SIZE, TRAIN_RATIO, save_model_path, save_history_path, N_EPOCH_ES, init_val_loss=1e20, **kwargs):
+    """
+    AMP + Early Stopping 적용된 학습 루프
+    """
+    # AMP를 위한 GradScaler
+    scaler = GradScaler()
+
+    # 스케줄러 필요시
+    if "LR_STEP" in kwargs:
+        from torch.optim.lr_scheduler import StepLR
+        scheduler = StepLR(optimizer, step_size=kwargs["LR_STEP"], gamma=kwargs["LR_GAMMA"])
+    else:
+        scheduler = None
+
+    loss_history = {"train": [], "val": []}
+    acc_history = {"train": [], "val": []}
+
+    print(f'Initial Validation Loss: {init_val_loss}')
+    no_improve_count = 0
+
+    # 메모리 포맷 변경 (opt) - 모델을 channels_last로 변경
+    # model = model.to(memory_format=torch.channels_last)
+
+    for ep in range(EPOCH):
+        epoch_start = time.time()
+        current_lr = optimizer.param_groups[0]["lr"]
+        print(f"[Epoch {ep+1}/{EPOCH}] LR={current_lr}")
+
+        # -------------------
+        #  (1) Train Mode
+        # -------------------
+        model.train()
+        train_loss, train_acc, _ = loss_epoch_AMP(
+            model, train_DL, criterion, DEVICE, optimizer, scaler
+        )
+        loss_history["train"].append(train_loss)
+        acc_history["train"].append(train_acc)
+
+        # -------------------
+        #  (2) Validation Mode
+        # -------------------
+        model.eval()
+        with torch.no_grad():
+            val_loss, val_acc, _ = loss_epoch_AMP(
+                model, val_DL, criterion, DEVICE, optimizer=None, scaler=None
+            )
+            loss_history["val"].append(val_loss)
+            acc_history["val"].append(val_acc)
+
+        # 스케줄러가 있으면
+        if scheduler is not None:
+            scheduler.step()
+
+        # Early Stopping 체크
+        if val_loss < init_val_loss:
+            init_val_loss = val_loss
+            print(f"--> best val loss updated: {round(init_val_loss, 5)}")
+            no_improve_count = 0
+            # 모델 가중치 저장
+            torch.save(model.state_dict(), save_model_path)
+        else:
+            no_improve_count += 1
+
+        print(f"[Train] loss={train_loss:.5f}, acc={train_acc:.2f} | "
+              f"[Val] loss={val_loss:.5f}, acc={val_acc:.2f}  "
+              f"(no_improve_count={no_improve_count}) | time: {round(time.time() - epoch_start)}s")
+        print("-"*50)
+
+        if no_improve_count >= N_EPOCH_ES:
+            print("Early stopping triggered.")
+            break
+
+    # 학습 이력 저장
+    torch.save({
+        "loss_history": loss_history,
+        "acc_history": acc_history,
+        "EPOCH": EPOCH,
+        "BATCH_SIZE": BATCH_SIZE,
+        "TRAIN_RATIO": TRAIN_RATIO
+    }, save_history_path)
+
+    return acc_history['train'][-1], acc_history['val'][-1], len(acc_history['train'])
 
 # Test
 def eval_loop(dataloader, net, loss_fn, DEVICE):
@@ -483,7 +610,7 @@ class CustomDataset_today_inference(Dataset):
         returns = self.returns[idx]
         return img, code, date, returns, label
 class CustomDataset_today_inference_yearly(Dataset):
-    def __init__(self, image_data_path, F_day_type=20, T_day_type=20, transform=None):
+    def __init__(self, image_data_path, year, curr_model_date,next_model_date, F_day_type=20, T_day_type=20, transform=None):
         self.transform = transform
 
         self.data = []
@@ -491,16 +618,17 @@ class CustomDataset_today_inference_yearly(Dataset):
         self.dates = []
         self.returns=[]
         self.labels=[]
-        with h5py.File(f"{image_data_path}/{F_day_type}day_to_{T_day_type}day.h5", 'r') as hf:
+        with h5py.File(f"{image_data_path}/{F_day_type}day_to_{T_day_type}day_{year}.h5", 'r') as hf:
             loaded_images = hf['images'][:]
             loaded_codes = [s.decode('utf-8') for s in hf['codes'][:]]
             loaded_dates = [s.decode('utf-8') for s in hf['dates'][:]]
-            for img, code, date in zip(loaded_images, loaded_codes, loaded_dates):
-                self.data.append(img)
-                self.codes.append(code)
-                self.dates.append(date)
-                self.returns.append(0)
-                self.labels.append(0)
+            for img, code, date in tqdm(zip(loaded_images, loaded_codes, loaded_dates), desc= f"Loading {year} data"):
+                if (pd.to_datetime(date)>pd.to_datetime(curr_model_date))&(pd.to_datetime(date)<pd.to_datetime(next_model_date)):
+                    self.data.append(img)
+                    self.codes.append(code)
+                    self.dates.append(date)
+                    self.returns.append(0)
+                    self.labels.append(0)
     def __len__(self):
         return len(self.data)
     def __getitem__(self, idx):
@@ -521,7 +649,7 @@ def labeling_v1(lb_tmp):
         label = 0
     return label
 class CustomDataset_all(Dataset):
-    def __init__(self, image_data_path, data_source, train, data_date,stt_date=None, until_date=None, transform=None,Pred_Hrz = 20,cap_criterion=0.2,F_day_type=20, T_day_type=20):
+    def __init__(self, image_data_path, data_source, train, data_date,stt_date=None, until_date=None, transform=None,Pred_Hrz = 20,cap_criterion=0.0,F_day_type=20, T_day_type=20):
         self.transform = transform
         self.train=train
 
