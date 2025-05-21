@@ -1,4 +1,11 @@
 # LLM_tool.py
+
+__default_LLM_model__      = "Qwen/Qwen3-14B-FP8"
+__default_LLM_load_type__  = "fp8"
+
+__default_VLM_model__      = "Qwen/Qwen2.5-VL-7B-Instruct"
+__default_VLM_load_type__  = "4bit"
+
 import os
 import time
 import gc
@@ -221,32 +228,41 @@ def load_local_image(image_path: str):
     # 모델에 맞춰서 RGB로 변환
     return Image.open(image_path).convert("RGB")
 
-def init_LLM_model(model_id: str = "Qwen/Qwen3-14B-FP8", load_type: str = "fp8"):
+def init_LLM_model(model_id: str = None, load_type: str = None):
     """
     전역 변수 tok, model에 로드.
     여러 번 호출하면 매번 모델을 갈아끼우는 형태.
     """
     global tok, model
 
+    if model_id is None:
+        model_id = __default_LLM_model__
+    if load_type is None:
+        load_type = __default_LLM_load_type__
+
     # 기존 모델 있으면 먼저 메모리 정리
     if tok or model:
         free_gpu(model, tok)
     # 새로 로드
     tok, model = load_LLM_model(model_id, load_type)
-def init_VLM_model(model_id: str = "Qwen/Qwen2.5-VL-7B-Instruct", load_type: str = "bf16"):
+def init_VLM_model(model_id: str = None, load_type: str = None):
     """
     전역 변수 vlm_processor, vlm_model에 로드.
     여러 번 호출하면 매번 모델을 갈아끼우는 형태.
     """
-    global vlm_processor, vlm_model, VLM_MODEL_ID, VLM_LOAD_TYPE
+    global vlm_processor, vlm_model
+
+    if model_id is None:
+        model_id = __default_VLM_model__
+    if load_type is None:
+        load_type = __default_VLM_load_type__
+
     # 기존 모델이 있으면 메모리 정리
     if vlm_processor or vlm_model:
         free_gpu(vlm_model, vlm_processor)
 
     # 새로 로드
     vlm_processor, vlm_model = load_VLM_model(model_id, load_type)
-    VLM_MODEL_ID = model_id
-    VLM_LOAD_TYPE = load_type
 
 @torch.inference_mode()
 def generate_byLLM(tok, model, prompt: str, max_new_tokens: int = 128):
@@ -402,8 +418,8 @@ def generate_caption_byVLM_stream(processor, model, image_path: str, prompt: str
 
 
 def get_LLM_response(prompt: str,
-                     model_id: str = "Qwen/Qwen3-14B-FP8",
-                     load_type: str = "fp8",
+                     model_id: str = None,
+                     load_type: str = None,
                      max_new_tokens: int = 7950,
                      stream: bool = False) -> str:
     """
@@ -416,6 +432,10 @@ def get_LLM_response(prompt: str,
     # 만약 모델이 전혀 로드 안 되어 있거나,
     # model_id/load_type이 현재 전역과 다른 경우 재초기화
     global tok, model
+    if model_id is None:
+        model_id = __default_LLM_model__
+    if load_type is None:
+        load_type = __default_LLM_load_type__
 
     # 간단 검증: 아직 모델이 없으면 init
     if not model or not tok:
@@ -434,8 +454,8 @@ def get_LLM_response(prompt: str,
 
 def get_VLM_response(image_path: str,
                      prompt: str,
-                     model_id: str = "Qwen/Qwen2.5-VL-7B-Instruct",
-                     load_type: str = "4bit",
+                     model_id: str = None,
+                     load_type: str = None,
                      max_new_tokens: int = 7950,
                      stream: bool = False) -> str:
     """
@@ -445,10 +465,14 @@ def get_VLM_response(image_path: str,
     - max_new_tokens: 생성 제한
     - stream: 스트리밍 여부
     """
-    global vlm_processor, vlm_model, VLM_MODEL_ID, VLM_LOAD_TYPE
+    global vlm_processor, vlm_model
+    if model_id is None:
+        model_id = __default_VLM_model__
+    if load_type is None:
+        load_type = __default_VLM_load_type__
 
     # 아직 모델이 없거나, 다른 모델이면 재초기화
-    if (vlm_model is None) or (VLM_MODEL_ID != model_id) or (VLM_LOAD_TYPE != load_type):
+    if (vlm_model is None) or (vlm_processor is None):
         init_VLM_model(model_id, load_type)
 
     if not stream:
