@@ -444,7 +444,7 @@ def get_LLM_response(prompt: str,
     # 실제 토큰 최대치 계산 (optional)
     prompt_ids = tok(prompt, return_tensors="pt")["input_ids"][0]
     safe_tokens = max_gen_for(model, prompt_ids)
-    final_tokens = min(len(prompt), safe_tokens)
+    final_tokens = max(max_new_tokens, safe_tokens)
     if not stream:
         ans = generate_byLLM(tok, model, prompt, final_tokens)
     else:
@@ -488,10 +488,10 @@ if __name__ == "__main__":
     # IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/chart/6a7b9f07_c_4_32.png"
     IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/figure/3d5faac9_f_6_55.png"
     PROMPT = "이 이미지에 대해 자세히 설명해줘."
-    ans = get_VLM_response(IMAGE_PATH, PROMPT)
-    print(ans)
+    ans_VLM = get_VLM_response(IMAGE_PATH, PROMPT)
+    print(ans_VLM)
 
     prompt = "오늘날 금융시장에 대해 300자 이내로 이야기해줘."
-    ans_stream = get_LLM_response(prompt, stream=False)
+    ans_LLM = get_LLM_response(prompt)
     print(ans_stream)
 
