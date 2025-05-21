@@ -417,11 +417,7 @@ def generate_caption_byVLM_stream(processor, model, image_path: str, prompt: str
 
 
 
-def get_LLM_response(prompt: str,
-                     model_id: str = None,
-                     load_type: str = None,
-                     max_new_tokens: int = 7950,
-                     stream: bool = False) -> str:
+def get_LLM_response(prompt: str, model_id: str = None, load_type: str = None, max_new_tokens: int = 7950, stream: bool = False) -> str:
     """
     - prompt: 유저가 넣는 프롬프트
     - model_id/load_type: 원하는 모델과 로드 방식
@@ -446,18 +442,15 @@ def get_LLM_response(prompt: str,
     safe_tokens = max_gen_for(model, prompt_ids)
     final_tokens = max(max_new_tokens, safe_tokens)
     if not stream:
+        stt_time = time.time()
         ans = generate_byLLM(tok, model, prompt, final_tokens)
+        print(f"LLM time: {time.time() - stt_time:.3f}s")
     else:
         ans = generate_byLLM_stream(tok, model, prompt, final_tokens)
-
+    print(ans)
     return ans
 
-def get_VLM_response(image_path: str,
-                     prompt: str,
-                     model_id: str = None,
-                     load_type: str = None,
-                     max_new_tokens: int = 7950,
-                     stream: bool = False) -> str:
+def get_VLM_response(image_path: str, prompt: str, model_id: str = None, load_type: str = None, max_new_tokens: int = 7950, stream: bool = False) -> str:
     """
     - image_path: 로컬 이미지 경로
     - prompt: 유저 텍스트
@@ -476,13 +469,13 @@ def get_VLM_response(image_path: str,
         init_VLM_model(model_id, load_type)
 
     if not stream:
-        return generate_caption_byVLM(
-            vlm_processor, vlm_model, image_path, prompt, max_new_tokens
-        )
+        stt_time = time.time()
+        ans = generate_caption_byVLM(vlm_processor, vlm_model, image_path, prompt, max_new_tokens)
+        print(f"VLM time: {time.time() - stt_time:.3f}s")
+        return ans
     else:
-        return generate_caption_byVLM_stream(
-            vlm_processor, vlm_model, image_path, prompt, max_new_tokens
-        )
+        ans = generate_caption_byVLM_stream(vlm_processor, vlm_model, image_path, prompt, max_new_tokens)
+        return ans
 
 if __name__ == "__main__":
     # IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/chart/6a7b9f07_c_4_32.png"
