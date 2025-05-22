@@ -1,4 +1,4 @@
-# LLM_tool.py
+# Qwen_tool.py
 
 __default_LLM_model__      = "Qwen/Qwen3-14B-FP8"
 __default_LLM_load_type__  = "fp8"
@@ -549,7 +549,7 @@ def summarize_long_text(
     final_pass_prompt_template : str
         최종 통합 요약 프롬프트 템플릿. {all_summaries} 위치에 1차 요약 리스트가 합쳐진 텍스트가 들어감.
     model_id : str
-        사용할 LLM ID (없으면 LLM_tool.py 상의 __default_LLM_model__).
+        사용할 LLM ID (없으면 Qwen_tool.py 상의 __default_LLM_model__).
     load_type : str
         로딩 방식 (없으면 __default_LLM_load_type__).
 
@@ -622,27 +622,27 @@ if __name__ == "__main__":
     print(len(ko_example_to_be_summarized))
     print(len(en_example_to_be_summarized))
 
-
     # IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/chart/6a7b9f07_c_4_32.png"
     # IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/figure/3d5faac9_f_6_55.png"
     # PROMPT = "이 이미지에 대해 자세히 설명해줘."
     # ans_VLM = get_VLM_response(IMAGE_PATH, PROMPT)
     # print(ans_VLM)
+
     MODELS = [
-        "Qwen/Qwen3-8B-AWQ",
         "Qwen/Qwen3-8B",
+        "Qwen/Qwen3-8B-AWQ",
         "Qwen/Qwen3-14B-FP8",
         # "Qwen/Qwen3-30B-A3B-FP8",
             ]
-    LOAD_TYPES = ["bf16", "4bit", "8bit"]
+    LOAD_TYPES = ["fp8", "bf16", "4bit", "8bit"]
 
     for model_id in MODELS:
         for load_type in LOAD_TYPES:
-            # prompt = "오늘날 금융시장에 대해 300자 이내로 이야기해줘."
             prompt = f"요약해줘\n{ko_example_to_be_summarized}\n요약:"
             ans_LLM = get_LLM_response(prompt, model_id=model_id, load_type=load_type, stream=False, max_new_tokens=len(prompt))
             # sum_LLM = summarize_long_text(ko_example_to_be_summarized)
+            print(f'{model_id} | {load_type}')
+            print(len(ans_LLM))
             print(f'{ans_LLM}')
             # print(f'{sum_LLM}')
             # print(clean_qwen_output(ans_LLM))
-            print(len(ans_LLM))
