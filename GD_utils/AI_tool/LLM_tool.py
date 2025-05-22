@@ -277,12 +277,13 @@ def generate_byLLM(tok, model, prompt: str, max_new_tokens: int = 128):
         **inputs,
         max_new_tokens=max_new_tokens,
         temperature=0.3,
+        early_stopping=True,
+        repetition_penalty=1.2,
         top_p=0.9,
         do_sample=True,
     )
     txt = tok.decode(out[0], skip_special_tokens=True)
     return txt.split(prompt, 1)[-1].strip()
-
 
 @torch.inference_mode()
 def generate_byLLM_stream(tok, model, prompt: str, max_new_tokens: int = 128):
@@ -300,6 +301,8 @@ def generate_byLLM_stream(tok, model, prompt: str, max_new_tokens: int = 128):
             max_new_tokens=max_new_tokens,
             streamer=streamer,
             temperature=0.3,
+            early_stopping=True,
+            repetition_penalty=1.2,
             top_p=0.9,
             do_sample=True,
         ),
@@ -465,7 +468,7 @@ def get_LLM_response(prompt: str, model_id: str = None, load_type: str = None, m
 
     prompt_ids = tok(prompt, return_tensors="pt")["input_ids"][0]
     safe_tokens = max_gen_for(model, prompt_ids)
-    final_tokens = max(max_new_tokens, safe_tokens)
+    final_tokens = min(safe_tokens, len(prompt))
     if not stream:
         stt_time = time.time()
         ans = generate_byLLM(tok, model, prompt, final_tokens)
@@ -625,17 +628,21 @@ if __name__ == "__main__":
     # PROMPT = "이 이미지에 대해 자세히 설명해줘."
     # ans_VLM = get_VLM_response(IMAGE_PATH, PROMPT)
     # print(ans_VLM)
+    MODELS = [
+        "Qwen/Qwen3-8B-AWQ",
+        "Qwen/Qwen3-8B",
+        "Qwen/Qwen3-14B-FP8",
+        # "Qwen/Qwen3-30B-A3B-FP8",
+            ]
+    LOAD_TYPES = ["bf16", "4bit", "8bit"]
 
-
-    # prompt = "오늘날 금융시장에 대해 300자 이내로 이야기해줘."
-    prompt = f"요약해줘\n{ko_example_to_be_summarized}\n요약:"
-    ans_LLM = get_LLM_response(prompt)
-    sum_LLM = summarize_long_text(ko_example_to_be_summarized)
-    print(f'{ans_LLM}')
-    print(f'{sum_LLM}')
-    print(clean_qwen_output(ans_LLM))
-    print(len(ans_LLM))
-
-    vram()
-    free_gpu()
-    vram()
+    for model_id in MODELS:
+        for load_type in LOAD_TYPES:
+            # prompt = "오늘날 금융시장에 대해 300자 이내로 이야기해줘."
+            prompt = f"요약해줘\n{ko_example_to_be_summarized}\n요약:"
+            ans_LLM = get_LLM_response(prompt, model_id=model_id, load_type=load_type, stream=False, max_new_tokens=len(prompt))
+            # sum_LLM = summarize_long_text(ko_example_to_be_summarized)
+            print(f'{ans_LLM}')
+            # print(f'{sum_LLM}')
+            # print(clean_qwen_output(ans_LLM))
+            print(len(ans_LLM))
