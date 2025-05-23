@@ -1,6 +1,4 @@
-# Gemma_tool.py (unified multimodal)
-# 모든 Gemma 3 모델을 하나의 래퍼로 제어 — 텍스트 전용·멀티모달 모두 지원
-# RTX 4090 환경 기준, bf16·4bit 양자화 기본 제공
+# Gemma_tool.py
 
 __default_MODEL__      = "google/gemma-3-4b-it"   # 멀티모달 겸용 기본 모델
 __default_LOAD_TYPE__  = "bf16"
@@ -69,6 +67,7 @@ def free_gpu(*objs):
         except Exception:
             pass
     if torch.cuda.is_available():
+        torch.cuda.synchronize()
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
     gc.collect()
@@ -87,6 +86,10 @@ def _is_quantized(mid: str) -> bool:
 
 def load_gemma_model(mid: str, ltype: str):
     global tok, processor, model, MODEL_ID, LOAD_TYPE
+
+    # ── ① 모델이 이미 떠 있고, id 또는 로드 방식이 달라질 때만 언로드
+    if model is not None and (mid != MODEL_ID or ltype != LOAD_TYPE):
+        _unload_current_model()          # ← 핵심 한 줄
 
     print(f"\n[Load] {mid} | {ltype}")
     kwargs: dict = dict(device_map=DEVICE_MAP, trust_remote_code=True)
@@ -122,7 +125,7 @@ def load_gemma_model(mid: str, ltype: str):
 @torch.inference_mode()
 def _generate_stream(tok, model, inputs, max_new_tokens):
     streamer = TextIteratorStreamer(tok, skip_special_tokens=True)
-    thr = Thread(target=model.generate, kwargs={**inputs, "max_new_tokens": max_new_tokens, "streamer": streamer, "temperature": 0.3, "top_p": 0.9, "repetition_penalty": 1.2, "do_sample": True}, daemon=True)
+    thr = Thread(target=model.generate, kwargs={**inputs, "max_new_tokens": max_new_tokens, "streamer": streamer, "temperature": 1.0, "top_k":64,"top_p": 0.95,"min_p": 0.01, "repetition_penalty": 1.0, "do_sample": True}, daemon=True)
 
     thr.start()
     out = ""
@@ -137,7 +140,7 @@ def _gen_text(prompt: str, max_new_tokens: int, stream: bool):
     inputs = tok(prompt, return_tensors="pt").to(model.device)
     if stream:
         return _generate_stream(tok, model, inputs, max_new_tokens).split(prompt, 1)[-1].lstrip()
-    out = model.generate(**inputs, max_new_tokens=max_new_tokens, temperature=0.3, top_p=0.9, repetition_penalty=1.2, do_sample=True)
+    out = model.generate(**inputs, max_new_tokens=max_new_tokens, temperature=1, top_p=0.95,min_p = 0.01,top_k=64, repetition_penalty=1.0, do_sample=True)
     txt = tok.decode(out[0], skip_special_tokens=True)
     return txt.split(prompt, 1)[-1].strip()
 
@@ -157,7 +160,7 @@ def _gen_vision(image_path: str, prompt: str, max_new_tokens: int):
 
 # ───────────────────────────── Public API ───────────────────────────
 
-def get_response(prompt: str, *, image_path: str | None = None, model_id: str | None = None,
+def get_LLM_response(prompt: str, *, image_path: str | None = None, model_id: str | None = None,
                  load_type: str | None = None, max_new_tokens: int = 2048, stream: bool = False):
     if model is None or tok is None or (model_id and model_id != MODEL_ID):
         load_gemma_model(model_id or __default_MODEL__, load_type or __default_LOAD_TYPE__)
@@ -167,7 +170,6 @@ def get_response(prompt: str, *, image_path: str | None = None, model_id: str | 
     return _gen_text(prompt, max_new_tokens, stream)
 
 # ───────────────────────────── Summarizer ───────────────────────────
-
 def summarize_long_text(text: str, *, language: str = "auto", model_id: str | None = None,
                         load_type: str | None = None, max_chunk_sents: int = 5, overlap_sents: int = 2,
                         max_new_tokens: int = 512):
@@ -194,6 +196,40 @@ def summarize_long_text(text: str, *, language: str = "auto", model_id: str | No
     final_prompt = f"다음은 부분 요약 모음입니다. 이를 종합하여 한글로 5문장 이내로 핵심만 다시 요약해줘.\n\n{merged}\n\n최종 요약:"
     return get_response(final_prompt, model_id=model_id, load_type=load_type, max_new_tokens=max_new_tokens)
 
+def _unload_current_model():
+    """현재 메모리에 올라와 있는 모든 객체·캐시를 정리한다."""
+    global model, tok, processor, MODEL_ID, LOAD_TYPE
+
+    if model is not None:
+        # (선택) CPU 로 옮겨 두면 GPU → PCIe 복사를 거치지 않고 바로 free
+        model.to("cpu")
+
+    # util 함수 활용
+    print("[Unload] 모델 언로드")
+    log_gpu_mem("Before free_gpu:")
+    free_gpu(model, tok, processor)
+    log_gpu_mem("After free_gpu:")
+
+    # 파이썬 레벨에서도 참조 끊기
+    model = tok = processor = None
+    MODEL_ID = LOAD_TYPE = None
+def log_gpu_mem(prefix=""):
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / 1024**2
+        reserved = torch.cuda.memory_reserved() / 1024**2
+        print(f"{prefix} allocated={allocated:.2f}MB, reserved={reserved:.2f}MB")
+def clean_gemma_output(raw: str) -> str:
+    # raw = ans_LLM
+    _THINK_BLOCK = re.compile(r".*?\n\nmodel\n", flags=re.S)
+
+    # ① 내부 사고 블록 제거
+    txt = _THINK_BLOCK.sub("", raw)
+
+    # ③ 있으면 그 뒤부터, 없으면 role 헤더 한 줄씩 삭제
+    parts = re.split(r"\n\s*\n", txt, maxsplit=1)  # 두 줄 연속 공백 기준 split
+    output = parts[1:] if len(parts) > 1 else txt  # 없으면 원본
+    return output.strip()
+
 # ───────────────────────────── 테스트 ───────────────────────────────
 if __name__ == "__main__":
     # todo: 수정 필요
@@ -203,42 +239,61 @@ if __name__ == "__main__":
     print(len(en_example_to_be_summarized))
 
     # IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/chart/6a7b9f07_c_4_32.png"
-    # IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/figure/3d5faac9_f_6_55.png"
-    # PROMPT = "이 이미지에 대해 자세히 설명해줘."
+    IMAGE_PATH = "C:/GD_GIT/GD_Crawling/Crawling_FnGuide/images/figure/3d5faac9_f_6_55.png"
+    PROMPT = "이 이미지에 대해 자세히 설명해줘. 절대로 추측하거나 추론하지말것, 주어진 팩트 기반으로만 설명할 것"
     # ans_VLM = get_VLM_response(IMAGE_PATH, PROMPT)
     # print(ans_VLM)
 
     MODELS = [
         # 4B  ─ 텍스트 + 멀티모달
         "google/gemma-3-4b-it",
-        "google/gemma-3-4b-pt",
-        # 9B  ─ 텍스트 + 멀티모달
-        "google/gemma-3-12b-it",
-        "google/gemma-3-12b-pt",
-        # 27B ─ heavy (4bit/8bit 로드만 시도)
-        "google/gemma-3-27b-it",
-        "google/gemma-3-27b-pt",
+        # "google/gemma-3-4b-pt",
+
+        # # 9B  ─ 텍스트 + 멀티모달
+        # "google/gemma-3-12b-it",
+        # "google/gemma-3-12b-pt",
+        #
+        # # 27B ─ heavy (4bit/8bit 로드만 시도)
+        # "google/gemma-3-27b-it",
+        # "google/gemma-3-27b-pt",
     ]
     # ‣ bf16   : 1B/4B/9B 에 권장(속도·정밀도 균형)
     # ‣ 4bit   : 최대 메모리 절약, 27B 포함 전 모델 구동 가능
     # ‣ 8bit   : 27B 모델도 안정적으로 구동, 다만 속도 ↓
     # ‣ fp16   : 1B·4B 정도에서만 사용 권장
     LOAD_TYPES = [
-        "bf16", "4bit", "8bit", "fp16"
+        "bf16", #"4bit", "8bit", "fp16"
     ]
 
     for model_id in MODELS:
         for load_type in LOAD_TYPES:
-            prompt = f"요약해줘\n{ko_example_to_be_summarized}\n요약:"
-            ans_LLM = get_response(prompt, model_id=model_id, load_type=load_type, stream=True)
-            print(f'{model_id} | {load_type} | stream=True')
-            print(len(ans_LLM))
-            print(f'{ans_LLM}')
+            prompt = (
+                        "<start_of_turn>user\n"
+                        "당신은 **전문 금융·투자 요약가**입니다.\n"
+                        "[규칙]\n"
+                        "- 시스템·사용자 지침 및 원문 텍스트를 **그대로 재현하지 마십시오**.\n"
+                        "- **정보를 생성·추론하지 말고, 주어진 사실만 토대로 요약하십시오**.\n"
+                        "- 반드시 **요약 문장만** 작성하십시오.\n"
+                        "- `<think>` 등 내부 사고 과정을 출력하지 마십시오.\n\n"
+                        "### 원문\n"
+                        f"{ko_example_to_be_summarized}\n"
+                        "<end_of_turn>\n"
+                        "<start_of_turn>model\n"
+                    )
+            # stt_time = time.time()
+            # # ans_LLM = get_LLM_response(prompt=prompt, model_id=model_id, load_type=load_type, stream=True)
+            # ans_LLM = get_LLM_response(prompt=PROMPT, image_path=IMAGE_PATH, model_id=model_id, load_type=load_type, stream=True)
+            # print(f'{model_id} | {load_type} | stream=True | {time.time()-stt_time:.2f}s 소요')
+            # print(len(ans_LLM))
+            # print(f'{ans_LLM}')
 
-            ans_LLM = get_response(prompt, model_id=model_id, load_type=load_type, stream=False)
-            print(f'{model_id} | {load_type} | stream=False')
+            stt_time = time.time()
+            # ans_LLM = get_LLM_response(prompt=prompt, model_id=model_id, load_type=load_type, stream=False)
+            ans_LLM = get_LLM_response(prompt=PROMPT, image_path=IMAGE_PATH, model_id=model_id, load_type=load_type, stream=False)
+            print(f'{model_id} | {load_type} | stream=False| {time.time()-stt_time:.2f}s 소요')
             print(len(ans_LLM))
             print(f'{ans_LLM}')
+            # print(f'{clean_gemma_output(ans_LLM)}')
 
             # print(f'{sum_LLM}')
             # print(clean_qwen_output(ans_LLM))
